@@ -8,6 +8,8 @@
 #include "../games/connect4/connect4.h"
 #include "../games/dots_boxes/dots_boxes.h"
 #include "../games/checkers/checkers.h"
+#include "../games/chess/chess.h"
+#include "../games/anagram/anagram.h"
 
 static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
@@ -20,6 +22,8 @@ static Pong        pong_game;
 static Connect4    connect4_game;
 static DotsBoxes   dots_boxes_game;
 static Checkers    checkers_game;
+static Chess       chess_game;
+static Anagram     anagram_game;
 
 void screen_manager_init() {
     screens[SCREEN_MENU] = {
@@ -69,6 +73,20 @@ void screen_manager_init() {
         []() { checkers_game.update(); },
         []() { checkers_game.destroy(); },
         true, checkers_game.maxPlayers()
+    };
+    screens[SCREEN_CHESS] = {
+        chess_game.name(),
+        []() -> lv_obj_t* { return chess_game.createScreen(); },
+        []() { chess_game.update(); },
+        []() { chess_game.destroy(); },
+        true, chess_game.maxPlayers()
+    };
+    screens[SCREEN_ANAGRAM] = {
+        anagram_game.name(),
+        []() -> lv_obj_t* { return anagram_game.createScreen(); },
+        []() { anagram_game.update(); },
+        []() { anagram_game.destroy(); },
+        true, anagram_game.maxPlayers()
     };
     screens[SCREEN_DOTS_BOXES] = {
         dots_boxes_game.name(),

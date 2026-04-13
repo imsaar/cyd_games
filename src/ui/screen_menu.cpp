@@ -14,6 +14,8 @@ static const MenuItem items[] = {
     { LV_SYMBOL_CHARGE " Connect 4",    SCREEN_CONNECT4 },
     { LV_SYMBOL_IMAGE " Memory",        SCREEN_MEMORY },
     { LV_SYMBOL_EYE_OPEN " Checkers",   SCREEN_CHECKERS },
+    { LV_SYMBOL_EDIT " Chess",          SCREEN_CHESS },
+    { LV_SYMBOL_LOOP " Anagram",        SCREEN_ANAGRAM },
     { LV_SYMBOL_LIST " Dots&Boxes",     SCREEN_DOTS_BOXES },
     { LV_SYMBOL_SETTINGS " Settings",   SCREEN_SETTINGS },
 };
@@ -30,13 +32,13 @@ lv_obj_t* screen_menu_create() {
     lv_obj_t* title = ui_create_title(scr, "CYD Arcade");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 2);
 
-    // 2 columns x 4 rows
+    // 2 columns x 5 rows (10 items)
     static const lv_coord_t col_w = 140;
-    static const lv_coord_t row_h = 40;
+    static const lv_coord_t row_h = 34;
     static const lv_coord_t gap_x = 8;
-    static const lv_coord_t gap_y = 5;
+    static const lv_coord_t gap_y = 4;
     lv_coord_t start_x = (320 - 2 * col_w - gap_x) / 2;
-    lv_coord_t start_y = 28;
+    lv_coord_t start_y = 24;
 
     for (int i = 0; i < NUM_ITEMS; i++) {
         int col = i % 2;
