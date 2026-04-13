@@ -236,11 +236,19 @@ void Chess::clear_highlights() {
         bool light = (i/8 + i%8) % 2 == 0;
         lv_obj_set_style_bg_color(cell_objs_[i],
             light ? lv_color_hex(0xeecea2) : lv_color_hex(0x8b6e4e), 0);
+        lv_obj_set_style_border_width(cell_objs_[i], 0, 0);
     }
 }
 
 void Chess::highlight_cell(int idx, lv_color_t color) {
+    // Used for selected piece — fill the cell
     lv_obj_set_style_bg_color(cell_objs_[idx], color, 0);
+}
+
+static void outline_cell(lv_obj_t* cell, lv_color_t color) {
+    // Used for legal move hints — border outline only, preserve cell color
+    lv_obj_set_style_border_color(cell, color, 0);
+    lv_obj_set_style_border_width(cell, 2, 0);
 }
 
 // ── Move validation ──
@@ -471,10 +479,12 @@ void Chess::cell_cb(lv_event_t* e) {
         s_self->clear_highlights();
         s_self->selected_ = idx;
         s_self->highlight_cell(idx, UI_COLOR_WARNING);
-        // Show legal move hints
+        // Show legal move hints as outlines in the piece's color
+        lv_color_t hint_color = s_self->is_white(idx)
+            ? lv_color_hex(0xffffff) : lv_color_hex(0x111111);
         for (int t = 0; t < 64; t++) {
             if (s_self->is_valid_move(idx, t, true)) {
-                s_self->highlight_cell(t, lv_color_hex(0x88aa44));
+                outline_cell(s_self->cell_objs_[t], hint_color);
             }
         }
         return;

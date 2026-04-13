@@ -30,7 +30,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 - **OTA Updates** — Custom web UI at `http://<IP>/update` showing device info, firmware version, and partition status
 - **Dual OTA Partitions** — app0/app1 alternating, with automatic rollback protection
 - **Network Multiplayer** — UDP broadcast peer discovery on port 4328, invite/accept lobby system
-- **Settings Screen** — Shows IP, MAC, RSSI, firmware version, partition, heap, uptime, and OTA URL
+- **Settings Screen** — Brightness slider, display inversion toggle, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
 ## Build & Flash
 

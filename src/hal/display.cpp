@@ -4,7 +4,7 @@
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 
-static TFT_eSPI tft = TFT_eSPI();
+TFT_eSPI tft = TFT_eSPI();  // Non-static: accessible via extern from settings
 
 // XPT2046 on separate SPI bus (touch pins differ from display pins)
 static SPIClass touch_spi(VSPI);
