@@ -9,7 +9,7 @@ class Connect4 : public GameBase {
     friend void c4_lobby_peer_cb(lv_event_t* e);
 
 public:
-    enum Mode { MODE_SELECT, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
+    enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
     lv_obj_t* createScreen() override;
     void update() override;
@@ -50,8 +50,13 @@ private:
     void update_status();
     void send_move(int col);
     void show_result(const char* text, bool is_win);
+    int cpu_pick_col();
+    int score_col(int col, Cell who);
+    uint32_t cpu_think_time_ = 0;
+    bool cpu_pending_ = false;
 
     static void col_cb(lv_event_t* e);
+    static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
 };

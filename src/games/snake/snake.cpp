@@ -6,9 +6,9 @@
 
 void Snake::reset() {
     snake_len_ = 3;
-    snake_[0] = {6, 5};
-    snake_[1] = {5, 5};
-    snake_[2] = {4, 5};
+    snake_[0] = {8, 4};
+    snake_[1] = {7, 4};
+    snake_[2] = {6, 4};
     dir_ = RIGHT;
     next_dir_ = RIGHT;
     score_ = 0;
@@ -175,7 +175,7 @@ lv_obj_t* Snake::createScreen() {
     lv_obj_set_style_text_font(lbl_score_, &lv_font_montserrat_14, 0);
     lv_obj_align(lbl_score_, LV_ALIGN_TOP_RIGHT, -10, 10);
 
-    // Game area (left side: 12*20 = 240px wide)
+    // Game area (full width, 16*20=320 x 9*20=180)
     game_area_ = lv_obj_create(screen_);
     lv_obj_remove_style_all(game_area_);
     lv_obj_set_size(game_area_, GRID_W * TILE, GRID_H * TILE);
@@ -193,34 +193,37 @@ lv_obj_t* Snake::createScreen() {
     lv_obj_set_style_radius(food_obj_, 4, 0);
     lv_obj_clear_flag(food_obj_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
-    // D-pad on right side (80px wide area, right of game)
-    // Layout:    [UP]
-    //         [LT]  [RT]
-    //            [DN]
-    static const int BTN_S = 36;
-    static const int PAD_X = 240 + (80 - BTN_S) / 2;  // Center in right panel
-    static const int PAD_Y = TOP_BAR + (GRID_H * TILE) / 2 - BTN_S - BTN_S / 2;
+    // Compact d-pad in bottom-right corner (overlays game area)
+    //     [U]
+    //  [L]   [R]
+    //     [D]
+    static const int BS = 28;  // Button size
+    static const int BG = 2;   // Gap between buttons
+    static const int PX = 320 - BS * 2 - BG - 6;  // Right-aligned
+    static const int PY = 240 - BS * 3 - BG * 2 - 4;  // Bottom-aligned
 
     struct DPad { const char* sym; int dir; int dx; int dy; };
     DPad dpad[] = {
-        { LV_SYMBOL_UP,    UP,     0, 0 },
-        { LV_SYMBOL_LEFT,  LEFT,  -(BTN_S/2 + 2), BTN_S + 2 },
-        { LV_SYMBOL_RIGHT, RIGHT,  (BTN_S/2 + 2), BTN_S + 2 },
-        { LV_SYMBOL_DOWN,  DOWN,   0, 2 * (BTN_S + 2) },
+        { LV_SYMBOL_UP,    UP,     BS/2 + BG/2,  0 },
+        { LV_SYMBOL_LEFT,  LEFT,   0,            BS + BG },
+        { LV_SYMBOL_RIGHT, RIGHT,  BS + BG,      BS + BG },
+        { LV_SYMBOL_DOWN,  DOWN,   BS/2 + BG/2,  2 * (BS + BG) },
     };
 
     for (int i = 0; i < 4; i++) {
         lv_obj_t* btn = lv_btn_create(screen_);
-        lv_obj_set_size(btn, BTN_S, BTN_S);
-        lv_obj_set_pos(btn, PAD_X + dpad[i].dx, PAD_Y + dpad[i].dy);
-        lv_obj_set_style_bg_color(btn, UI_COLOR_CARD, 0);
+        lv_obj_set_size(btn, BS, BS);
+        lv_obj_set_pos(btn, PX + dpad[i].dx, PY + dpad[i].dy);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(0x2a2a4a), 0);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_80, 0);
         lv_obj_set_style_bg_color(btn, UI_COLOR_ACCENT, LV_STATE_PRESSED);
-        lv_obj_set_style_radius(btn, 6, 0);
+        lv_obj_set_style_radius(btn, 4, 0);
         lv_obj_set_user_data(btn, (void*)(intptr_t)dpad[i].dir);
 
         lv_obj_t* lbl = lv_label_create(btn);
         lv_label_set_text(lbl, dpad[i].sym);
         lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, 0);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
         lv_obj_center(lbl);
 
         lv_obj_add_event_cb(btn, dir_btn_cb, LV_EVENT_PRESSED, this);

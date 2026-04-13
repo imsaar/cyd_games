@@ -9,7 +9,7 @@ class Checkers : public GameBase {
     friend void ck_lobby_peer_cb(lv_event_t* e);
 
 public:
-    enum Mode { MODE_SELECT, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
+    enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
     lv_obj_t* createScreen() override;
     void update() override;
@@ -67,7 +67,14 @@ private:
     void send_move(int from, int to);
     void show_result(const char* text, bool is_win);
 
+    // CPU AI
+    void cpu_move();
+    int eval_board();
+    bool cpu_pending_ = false;
+    uint32_t cpu_think_time_ = 0;
+
     static void cell_cb(lv_event_t* e);
+    static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
 };

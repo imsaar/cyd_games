@@ -76,11 +76,27 @@ void ck_lobby_peer_cb(lv_event_t* e) {
 
 // ── Mode selection ──
 
+void Checkers::mode_cpu_cb(lv_event_t* e) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_CPU;
+    s_self->my_color_red_ = true;
+    s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
+    discovery_clear_game();
+    discovery_on_invite(nullptr);
+    discovery_on_accept(nullptr);
+    discovery_on_game_data(nullptr);
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
 void Checkers::mode_local_cb(lv_event_t* e) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOCAL;
     s_self->my_color_red_ = true;
     s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -107,11 +123,14 @@ lv_obj_t* Checkers::create_mode_select() {
     ui_create_back_btn(scr);
     lv_obj_t* title = ui_create_title(scr, "Checkers");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 50);
-    lv_obj_align(b1, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_t* b0 = ui_create_btn(scr, "vs CPU", 140, 42);
+    lv_obj_align(b0, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_add_event_cb(b0, mode_cpu_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 42);
+    lv_obj_align(b1, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_event_cb(b1, mode_local_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* b2 = ui_create_btn(scr, "Online (2P)", 140, 50);
-    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 35);
+    lv_obj_t* b2 = ui_create_btn(scr, "Online (2P)", 140, 42);
+    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_event_cb(b2, mode_online_cb, LV_EVENT_CLICKED, NULL);
     return scr;
 }
@@ -190,7 +209,7 @@ lv_obj_t* Checkers::create_board() {
             lv_obj_set_size(cell, CELL, CELL);
             lv_obj_set_pos(cell, c * CELL, r * CELL);
             lv_obj_set_style_bg_color(cell,
-                dark ? lv_color_hex(0x5c3a1e) : lv_color_hex(0xd4a76a), 0);
+                dark ? lv_color_hex(0xcc2222) : lv_color_hex(0x111111), 0);
             lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
             lv_obj_clear_flag(cell, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
             cell_objs_[idx] = cell;
@@ -230,7 +249,7 @@ void Checkers::draw_piece(int idx) {
     bool is_red = val > 0;
     bool is_king = (val == RED_KING || val == BLACK_KING);
     lv_obj_set_style_bg_color(p,
-        is_red ? UI_COLOR_ACCENT : lv_color_hex(0x333333), 0);
+        is_red ? lv_color_hex(0xeeeeee) : lv_color_hex(0x222222), 0);
     if (is_king) {
         lv_obj_set_style_border_color(p, UI_COLOR_WARNING, 0);
         lv_obj_set_style_border_width(p, 2, 0);
@@ -243,7 +262,7 @@ void Checkers::clear_highlights() {
     for (int i = 0; i < 64; i++) {
         bool dark = (i / 8 + i % 8) % 2 == 1;
         lv_obj_set_style_bg_color(cell_objs_[i],
-            dark ? lv_color_hex(0x5c3a1e) : lv_color_hex(0xd4a76a), 0);
+            dark ? lv_color_hex(0xcc2222) : lv_color_hex(0x111111), 0);
     }
 }
 
@@ -408,6 +427,8 @@ void Checkers::check_game_over() {
         if (mode_ == MODE_NETWORK) {
             bool i_won = (my_color_red_ == red_wins);
             show_result(i_won ? "You Win!" : "You Lose!", i_won);
+        } else if (mode_ == MODE_CPU) {
+            show_result(red_wins ? "You Win!" : "CPU Wins!", red_wins);
         } else {
             show_result(red_wins ? "Red Wins!" : "Black Wins!", true);
         }
@@ -417,6 +438,7 @@ void Checkers::check_game_over() {
 void Checkers::cell_cb(lv_event_t* e) {
     if (!s_self || s_self->game_done_) return;
     if (s_self->mode_ == MODE_NETWORK && !s_self->my_turn_) return;
+    if (s_self->mode_ == MODE_CPU && !s_self->is_red_turn_) return;
 
     lv_indev_t* indev = lv_indev_get_act();
     lv_point_t p;
@@ -501,7 +523,9 @@ void Checkers::cell_cb(lv_event_t* e) {
 
 void Checkers::update_status() {
     if (!lbl_status_) return;
-    if (mode_ == MODE_LOCAL) {
+    if (mode_ == MODE_CPU) {
+        lv_label_set_text(lbl_status_, is_red_turn_ ? "Your turn" : "CPU thinking...");
+    } else if (mode_ == MODE_LOCAL) {
         lv_label_set_text(lbl_status_, is_red_turn_ ? "Red's turn" : "Black's turn");
     } else {
         lv_label_set_text(lbl_status_, my_turn_ ? "Your turn" : "Waiting...");
@@ -536,6 +560,131 @@ void Checkers::show_result(const char* text, bool is_win) {
     }, LV_EVENT_CLICKED, NULL);
 }
 
+// ── CPU AI ──
+
+int Checkers::eval_board() {
+    int score = 0;
+    for (int i = 0; i < 64; i++) {
+        switch (board_[i]) {
+            case RED_MAN:    score += 3; break;
+            case RED_KING:   score += 5; break;
+            case BLACK_MAN:  score -= 3; break;
+            case BLACK_KING: score -= 5; break;
+            default: break;
+        }
+    }
+    return score;
+}
+
+void Checkers::cpu_move() {
+    // Collect all legal moves for black (CPU)
+    struct Move { int from; int to; bool is_jump; int score; };
+    Move moves[64];
+    int n_moves = 0;
+
+    // Check if any jump is available (forced)
+    bool any_jump = false;
+    for (int i = 0; i < 64; i++) {
+        if (board_[i] >= 0) continue;  // Skip non-black
+        if (can_jump(i)) { any_jump = true; break; }
+    }
+
+    for (int i = 0; i < 64; i++) {
+        if (board_[i] >= 0) continue;
+        int r = i / 8, c = i % 8;
+        bool is_king = (board_[i] == BLACK_KING);
+
+        int dirs[4][2] = {{-1,-1},{-1,1},{1,-1},{1,1}};
+        int start = is_king ? 0 : 2;  // Black moves down (rows 2,3)
+        int end = is_king ? 4 : 4;
+
+        for (int d = start; d < end; d++) {
+            if (any_jump) {
+                // Only collect jumps
+                int jr = r + 2*dirs[d][0], jc = c + 2*dirs[d][1];
+                int mr = r + dirs[d][0], mc = c + dirs[d][1];
+                if (jr < 0 || jr >= 8 || jc < 0 || jc >= 8) continue;
+                int mid = mr*8+mc, dest = jr*8+jc;
+                if (board_[dest] != EMPTY_CELL) continue;
+                if (board_[mid] <= 0) continue;  // Must jump over red
+                if (n_moves < 64) {
+                    // Evaluate: try move, score, undo
+                    int8_t saved_from = board_[i], saved_mid = board_[mid];
+                    board_[dest] = board_[i]; board_[i] = EMPTY_CELL; board_[mid] = EMPTY_CELL;
+                    if (dest / 8 == 7 && board_[dest] == BLACK_MAN) board_[dest] = BLACK_KING;
+                    int s = -eval_board();  // CPU wants low score (black is negative)
+                    board_[i] = saved_from; board_[mid] = saved_mid; board_[dest] = EMPTY_CELL;
+                    moves[n_moves++] = {i, dest, true, s};
+                }
+            } else {
+                // Simple moves
+                int nr = r + dirs[d][0], nc = c + dirs[d][1];
+                if (nr < 0 || nr >= 8 || nc < 0 || nc >= 8) continue;
+                int dest = nr*8+nc;
+                if (board_[dest] != EMPTY_CELL) continue;
+                if (n_moves < 64) {
+                    int8_t saved = board_[i];
+                    board_[dest] = board_[i]; board_[i] = EMPTY_CELL;
+                    if (dest / 8 == 7 && board_[dest] == BLACK_MAN) board_[dest] = BLACK_KING;
+                    int s = -eval_board();
+                    board_[i] = saved; board_[dest] = EMPTY_CELL;
+                    moves[n_moves++] = {i, dest, false, s};
+                }
+            }
+        }
+    }
+
+    if (n_moves == 0) return;
+
+    // Find best score
+    int best = moves[0].score;
+    for (int i = 1; i < n_moves; i++) {
+        if (moves[i].score > best) best = moves[i].score;
+    }
+
+    // Collect all moves with best score, pick random
+    Move candidates[64];
+    int n_cand = 0;
+    for (int i = 0; i < n_moves; i++) {
+        if (moves[i].score == best) candidates[n_cand++] = moves[i];
+    }
+    Move& pick = candidates[random(0, n_cand)];
+
+    try_move(pick.from, pick.to);
+    clear_highlights();
+    draw_board();
+
+    // Handle multi-jump
+    while (must_jump_ && jump_piece_ >= 0) {
+        // Find a jump for the jumping piece
+        bool found = false;
+        int idx = jump_piece_;
+        int r = idx / 8, c = idx % 8;
+        bool is_king = (board_[idx] == BLACK_KING);
+        int dirs[4][2] = {{-1,-1},{-1,1},{1,-1},{1,1}};
+        int ds = is_king ? 0 : 2, de = 4;
+        for (int d = ds; d < de; d++) {
+            int jr = r + 2*dirs[d][0], jc = c + 2*dirs[d][1];
+            int mr = r + dirs[d][0], mc = c + dirs[d][1];
+            if (jr < 0 || jr >= 8 || jc < 0 || jc >= 8) continue;
+            if (board_[jr*8+jc] != EMPTY_CELL) continue;
+            if (board_[mr*8+mc] <= 0) continue;
+            try_move(idx, jr*8+jc);
+            clear_highlights();
+            draw_board();
+            found = true;
+            break;
+        }
+        if (!found) break;
+    }
+
+    is_red_turn_ = true;
+    must_jump_ = false;
+    jump_piece_ = -1;
+    check_game_over();
+    update_status();
+}
+
 void Checkers::send_move(int from, int to) {
     StaticJsonDocument<128> doc;
     doc["type"] = "move";
@@ -558,6 +707,17 @@ lv_obj_t* Checkers::createScreen() {
 }
 
 void Checkers::update() {
+    // CPU move with delay
+    if (mode_ == MODE_CPU && !is_red_turn_ && !game_done_) {
+        if (!cpu_pending_) {
+            cpu_pending_ = true;
+            cpu_think_time_ = millis();
+        } else if (millis() - cpu_think_time_ > 600) {
+            cpu_pending_ = false;
+            cpu_move();
+        }
+    }
+
     if (mode_ == MODE_LOBBY && lobby_list_) {
         static uint32_t last_refresh = 0;
         if (millis() - last_refresh > 2000) {

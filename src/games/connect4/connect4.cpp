@@ -76,11 +76,27 @@ void c4_lobby_peer_cb(lv_event_t* e) {
 
 // ── Mode selection ──
 
+void Connect4::mode_cpu_cb(lv_event_t* e) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_CPU;
+    s_self->my_color_ = RED;
+    s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
+    discovery_clear_game();
+    discovery_on_invite(nullptr);
+    discovery_on_accept(nullptr);
+    discovery_on_game_data(nullptr);
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
 void Connect4::mode_local_cb(lv_event_t* e) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOCAL;
     s_self->my_color_ = RED;
     s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -107,12 +123,19 @@ lv_obj_t* Connect4::create_mode_select() {
     ui_create_back_btn(scr);
     lv_obj_t* title = ui_create_title(scr, "Connect 4");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_t* btn_local = ui_create_btn(scr, "Local (2P)", 140, 50);
-    lv_obj_align(btn_local, LV_ALIGN_CENTER, 0, -30);
-    lv_obj_add_event_cb(btn_local, mode_local_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* btn_online = ui_create_btn(scr, "Online (2P)", 140, 50);
-    lv_obj_align(btn_online, LV_ALIGN_CENTER, 0, 35);
-    lv_obj_add_event_cb(btn_online, mode_online_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* b1 = ui_create_btn(scr, "vs CPU", 140, 42);
+    lv_obj_align(b1, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_add_event_cb(b1, mode_cpu_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* b2 = ui_create_btn(scr, "Local (2P)", 140, 42);
+    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_event_cb(b2, mode_local_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* b3 = ui_create_btn(scr, "Online (2P)", 140, 42);
+    lv_obj_align(b3, LV_ALIGN_CENTER, 0, 50);
+    lv_obj_add_event_cb(b3, mode_online_cb, LV_EVENT_CLICKED, NULL);
+
     return scr;
 }
 
@@ -200,6 +223,7 @@ lv_obj_t* Connect4::create_board() {
 void Connect4::col_cb(lv_event_t* e) {
     if (!s_self || s_self->game_done_) return;
     if (s_self->mode_ == MODE_NETWORK && !s_self->my_turn_) return;
+    if (s_self->mode_ == MODE_CPU && s_self->current_ == YELLOW) return;  // CPU's turn
 
     // Determine column from tap X position
     lv_indev_t* indev = lv_indev_get_act();
@@ -235,7 +259,7 @@ int Connect4::drop_disc(int col) {
     board_[idx] = current_;
 
     // Update visual
-    lv_color_t color = (current_ == RED) ? UI_COLOR_ACCENT : UI_COLOR_WARNING;
+    lv_color_t color = (current_ == RED) ? lv_color_hex(0xff0000) : lv_color_hex(0xffdd00);
     lv_obj_set_style_bg_color(board_objs_[idx], color, 0);
 
     if (check_win(row, col)) {
@@ -243,6 +267,8 @@ int Connect4::drop_disc(int col) {
         if (mode_ == MODE_NETWORK) {
             bool i_won = (current_ == my_color_);
             show_result(i_won ? "You Win!" : "You Lose!", i_won);
+        } else if (mode_ == MODE_CPU) {
+            show_result(current_ == RED ? "You Win!" : "CPU Wins!", current_ == RED);
         } else {
             show_result(current_ == RED ? "Red Wins!" : "Yellow Wins!", true);
         }
@@ -298,7 +324,9 @@ bool Connect4::board_full() {
 
 void Connect4::update_status() {
     if (!lbl_status_) return;
-    if (mode_ == MODE_LOCAL) {
+    if (mode_ == MODE_CPU) {
+        lv_label_set_text(lbl_status_, current_ == RED ? "Your turn" : "CPU thinking...");
+    } else if (mode_ == MODE_LOCAL) {
         lv_label_set_text(lbl_status_, current_ == RED ? "Red's turn" : "Yellow's turn");
     } else {
         lv_label_set_text(lbl_status_, my_turn_ ? "Your turn" : "Waiting...");
@@ -333,6 +361,53 @@ void Connect4::show_result(const char* text, bool is_win) {
     }, LV_EVENT_CLICKED, NULL);
 }
 
+// ── CPU AI ──
+
+// Score a hypothetical drop for 'who' in 'col'
+int Connect4::score_col(int col, Cell who) {
+    // Find where disc would land
+    int row = -1;
+    for (int r = ROWS - 1; r >= 0; r--) {
+        if (board_[r * COLS + col] == EMPTY) { row = r; break; }
+    }
+    if (row < 0) return -1000;  // Column full
+
+    // Temporarily place
+    board_[row * COLS + col] = who;
+    bool wins = check_win(row, col);
+    board_[row * COLS + col] = EMPTY;
+
+    if (wins) return 1000;
+
+    // Prefer center columns
+    int center_score = COLS / 2 - abs(col - COLS / 2);
+    return center_score;
+}
+
+int Connect4::cpu_pick_col() {
+    // 1. Can CPU win?
+    for (int c = 0; c < COLS; c++) {
+        if (score_col(c, YELLOW) >= 1000) return c;
+    }
+    // 2. Must block player win?
+    for (int c = 0; c < COLS; c++) {
+        if (score_col(c, RED) >= 1000) return c;
+    }
+    // 3. Pick best scoring column
+    int best_col = -1, best_score = -9999;
+    for (int c = 0; c < COLS; c++) {
+        int s = score_col(c, YELLOW);
+        if (s > best_score) { best_score = s; best_col = c; }
+    }
+    // Add some randomness among equally good columns
+    int candidates[COLS];
+    int n = 0;
+    for (int c = 0; c < COLS; c++) {
+        if (score_col(c, YELLOW) == best_score) candidates[n++] = c;
+    }
+    return candidates[random(0, n)];
+}
+
 void Connect4::send_move(int col) {
     StaticJsonDocument<128> doc;
     doc["type"] = "move";
@@ -354,6 +429,18 @@ lv_obj_t* Connect4::createScreen() {
 }
 
 void Connect4::update() {
+    // CPU move with a short delay for "thinking" feel
+    if (mode_ == MODE_CPU && current_ == YELLOW && !game_done_) {
+        if (!cpu_pending_) {
+            cpu_pending_ = true;
+            cpu_think_time_ = millis();
+        } else if (millis() - cpu_think_time_ > 500) {
+            cpu_pending_ = false;
+            int col = cpu_pick_col();
+            if (col >= 0) drop_disc(col);
+        }
+    }
+
     if (mode_ == MODE_LOBBY && lobby_list_) {
         static uint32_t last_refresh = 0;
         if (millis() - last_refresh > 2000) {

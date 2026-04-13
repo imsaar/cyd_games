@@ -11,10 +11,10 @@ public:
     uint8_t maxPlayers() const override { return 1; }
 
 private:
-    static const int GRID_W = 12;
-    static const int GRID_H = 10;
+    static const int GRID_W = 16;
+    static const int GRID_H = 9;
     static const int TILE   = 20;
-    static const int TOP_BAR = 40;
+    static const int TOP_BAR = 30;
 
     enum Dir { UP, DOWN, LEFT, RIGHT };
     struct Pos { int x, y; };
@@ -25,10 +25,10 @@ private:
     lv_obj_t* overlay_   = nullptr;
     lv_obj_t* food_obj_  = nullptr;
 
-    lv_obj_t* body_objs_[120] = {};
+    lv_obj_t* body_objs_[144] = {};  // GRID_W * GRID_H
     int body_obj_count_ = 0;
 
-    Pos snake_[120];
+    Pos snake_[144];
     int snake_len_    = 0;
     Dir dir_          = RIGHT;
     Dir next_dir_     = RIGHT;
