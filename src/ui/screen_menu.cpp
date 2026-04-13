@@ -8,11 +8,14 @@ struct MenuItem {
 };
 
 static const MenuItem items[] = {
-    { LV_SYMBOL_PLAY " Snake",       SCREEN_SNAKE },
+    { LV_SYMBOL_PLAY " Snake",          SCREEN_SNAKE },
     { LV_SYMBOL_SHUFFLE " Tic-Tac-Toe", SCREEN_TICTACTOE },
-    { LV_SYMBOL_IMAGE " Memory",     SCREEN_MEMORY },
-    { LV_SYMBOL_REFRESH " Pong",     SCREEN_PONG },
-    { LV_SYMBOL_SETTINGS " Settings", SCREEN_SETTINGS },
+    { LV_SYMBOL_REFRESH " Pong",        SCREEN_PONG },
+    { LV_SYMBOL_CHARGE " Connect 4",    SCREEN_CONNECT4 },
+    { LV_SYMBOL_IMAGE " Memory",        SCREEN_MEMORY },
+    { LV_SYMBOL_EYE_OPEN " Checkers",   SCREEN_CHECKERS },
+    { LV_SYMBOL_LIST " Dots&Boxes",     SCREEN_DOTS_BOXES },
+    { LV_SYMBOL_SETTINGS " Settings",   SCREEN_SETTINGS },
 };
 static const int NUM_ITEMS = sizeof(items) / sizeof(items[0]);
 
@@ -24,22 +27,22 @@ static void menu_btn_cb(lv_event_t* e) {
 lv_obj_t* screen_menu_create() {
     lv_obj_t* scr = ui_create_screen();
 
-    // Title
     lv_obj_t* title = ui_create_title(scr, "CYD Arcade");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 2);
 
-    // Button grid: 2 columns x 3 rows, fitting 320x240
+    // 2 columns x 4 rows
     static const lv_coord_t col_w = 140;
-    static const lv_coord_t row_h = 50;
-    static const lv_coord_t gap   = 8;
-    lv_coord_t start_x = (320 - 2 * col_w - gap) / 2;
-    lv_coord_t start_y = 40;
+    static const lv_coord_t row_h = 40;
+    static const lv_coord_t gap_x = 8;
+    static const lv_coord_t gap_y = 5;
+    lv_coord_t start_x = (320 - 2 * col_w - gap_x) / 2;
+    lv_coord_t start_y = 28;
 
     for (int i = 0; i < NUM_ITEMS; i++) {
         int col = i % 2;
         int row = i / 2;
-        lv_coord_t x = start_x + col * (col_w + gap);
-        lv_coord_t y = start_y + row * (row_h + gap);
+        lv_coord_t x = start_x + col * (col_w + gap_x);
+        lv_coord_t y = start_y + row * (row_h + gap_y);
 
         lv_obj_t* btn = ui_create_btn(scr, items[i].label, col_w, row_h);
         lv_obj_set_pos(btn, x, y);

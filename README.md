@@ -12,10 +12,15 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 ## Games
 
-- **Snake** — Tap-to-steer, single player, progressive speed
-- **Tic-Tac-Toe** — Local pass-and-play or networked 2-player via UDP
-- **Memory Match** — Card matching with 6 symbol pairs, single player
-- **Pong** — vs Computer with touch-controlled paddle
+| Game | Players | Online | Description |
+|------|---------|--------|-------------|
+| Snake | 1P | - | D-pad controlled, progressive speed |
+| Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
+| Pong | 1-2P | Yes | Touch paddle, vs CPU or online |
+| Connect 4 | 2P | Yes | Drop discs, first to 4 wins |
+| Memory Match | 1-2P | Yes | Card matching with 6 pairs |
+| Checkers | 2P | Yes | Full rules with kings and forced jumps |
+| Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
 
 ## Features
 
@@ -85,7 +90,8 @@ Create `include/secrets.h` (gitignored):
 │   ├── hal/                # Display, backlight, LED, audio drivers
 │   ├── net/                # WiFi, OTA, UDP discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
-│   └── games/              # Snake, Tic-Tac-Toe, Memory Match, Pong
+│   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
+│                           # Checkers, Dots & Boxes
 ```
 
 ## Multiplayer
@@ -97,3 +103,5 @@ Two-player games use UDP broadcast discovery on the local network:
 3. Tap a peer to send an invite
 4. Other device sees an Accept/Decline popup
 5. Game starts once invite is accepted
+
+Each game syncs state independently — Tic-Tac-Toe and Connect 4 send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.

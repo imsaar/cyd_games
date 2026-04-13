@@ -5,6 +5,9 @@
 #include "../games/tictactoe/tictactoe.h"
 #include "../games/memory_match/memory_match.h"
 #include "../games/pong/pong.h"
+#include "../games/connect4/connect4.h"
+#include "../games/dots_boxes/dots_boxes.h"
+#include "../games/checkers/checkers.h"
 
 static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
@@ -14,6 +17,9 @@ static Snake       snake_game;
 static TicTacToe   ttt_game;
 static MemoryMatch memory_game;
 static Pong        pong_game;
+static Connect4    connect4_game;
+static DotsBoxes   dots_boxes_game;
+static Checkers    checkers_game;
 
 void screen_manager_init() {
     screens[SCREEN_MENU] = {
@@ -49,6 +55,27 @@ void screen_manager_init() {
         []() { pong_game.update(); },
         []() { pong_game.destroy(); },
         true, pong_game.maxPlayers()
+    };
+    screens[SCREEN_CONNECT4] = {
+        connect4_game.name(),
+        []() -> lv_obj_t* { return connect4_game.createScreen(); },
+        []() { connect4_game.update(); },
+        []() { connect4_game.destroy(); },
+        true, connect4_game.maxPlayers()
+    };
+    screens[SCREEN_CHECKERS] = {
+        checkers_game.name(),
+        []() -> lv_obj_t* { return checkers_game.createScreen(); },
+        []() { checkers_game.update(); },
+        []() { checkers_game.destroy(); },
+        true, checkers_game.maxPlayers()
+    };
+    screens[SCREEN_DOTS_BOXES] = {
+        dots_boxes_game.name(),
+        []() -> lv_obj_t* { return dots_boxes_game.createScreen(); },
+        []() { dots_boxes_game.update(); },
+        []() { dots_boxes_game.destroy(); },
+        true, dots_boxes_game.maxPlayers()
     };
 }
 

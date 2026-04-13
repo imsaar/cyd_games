@@ -3,6 +3,11 @@
 #include "../../net/discovery.h"
 
 class Pong : public GameBase {
+    friend void pong_on_invite(const Peer& from);
+    friend void pong_on_accept(const Peer& from);
+    friend void pong_on_game_data(const char* json);
+    friend void pong_lobby_peer_cb(lv_event_t* e);
+
 public:
     lv_obj_t* createScreen() override;
     void update() override;
@@ -20,6 +25,7 @@ private:
     static const int PADDLE_W = 8;
     static const int PADDLE_H = 40;
     static const int BALL_SIZE = 8;
+    static const int WIN_SCORE = 10;
 
     lv_obj_t* screen_     = nullptr;
     lv_obj_t* court_      = nullptr;
@@ -27,7 +33,8 @@ private:
     lv_obj_t* paddle_r_   = nullptr;
     lv_obj_t* ball_       = nullptr;
     lv_obj_t* lbl_score_  = nullptr;
-    lv_obj_t* center_line_[17] = {};  // Dashed center line segments
+    lv_obj_t* lobby_list_ = nullptr;
+    lv_obj_t* center_line_[17] = {};
 
     float ball_x_, ball_y_;
     float ball_dx_, ball_dy_;
@@ -38,16 +45,20 @@ private:
     bool is_local_ = true;
     IPAddress peer_ip_;
     uint32_t last_frame_ = 0;
+    uint32_t last_net_send_ = 0;
 
     void reset_ball();
     void reset_game();
     void step();
     void draw();
     void update_score_label();
+    void send_state();
+    void show_winner(bool left_won);
+
+    lv_obj_t* create_game_screen();
+    lv_obj_t* create_lobby();
 
     static void touch_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
-
-    lv_obj_t* create_game_screen();
 };
