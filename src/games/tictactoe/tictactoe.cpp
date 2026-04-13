@@ -241,13 +241,51 @@ void TicTacToe::cell_cb(lv_event_t* e) {
 
     if (s_self->mode_ == MODE_NETWORK) {
         s_self->send_move(idx);
-        s_self->my_turn_ = false;
-        s_self->update_status();
+        if (!s_self->game_done_) {
+            s_self->my_turn_ = false;
+            s_self->update_status();
+        }
     }
+}
+
+void TicTacToe::show_result(const char* text, bool is_win) {
+    if (!screen_) return;
+
+    lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
+
+    lv_obj_t* overlay = lv_obj_create(screen_);
+    lv_obj_remove_style_all(overlay);
+    lv_obj_set_size(overlay, 280, 140);
+    lv_obj_center(overlay);
+    lv_obj_set_style_bg_color(overlay, lv_color_hex(0x0e0e1a), 0);
+    lv_obj_set_style_bg_opa(overlay, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(overlay, 16, 0);
+    lv_obj_set_style_border_color(overlay, color, 0);
+    lv_obj_set_style_border_width(overlay, 3, 0);
+    lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* lbl = lv_label_create(overlay);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_color(lbl, color, 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, -15);
+
+    lv_obj_t* btn = ui_create_btn(overlay, "Menu", 100, 36);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -15);
+    lv_obj_add_event_cb(btn, [](lv_event_t* e) {
+        screen_manager_back_to_menu();
+    }, LV_EVENT_CLICKED, NULL);
 }
 
 void TicTacToe::place_mark(int idx) {
     board_[idx] = current_;
+
+    Serial.printf("[TTT] place_mark idx=%d current=%d board=[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
+                  idx, (int)current_,
+                  board_[0], board_[1], board_[2],
+                  board_[3], board_[4], board_[5],
+                  board_[6], board_[7], board_[8]);
 
     lv_obj_t* lbl = lv_obj_get_child(cells_[idx], 0);
     lv_label_set_text(lbl, current_ == PLAYER_X ? "X" : "O");
@@ -257,19 +295,22 @@ void TicTacToe::place_mark(int idx) {
     Cell winner = check_winner();
     if (winner != EMPTY) {
         game_done_ = true;
-        char buf[32];
         if (mode_ == MODE_NETWORK) {
             bool i_won = (winner == my_mark_);
-            snprintf(buf, sizeof(buf), "%s", i_won ? "You Win!" : "You Lose!");
+            show_result(i_won ? "You Win!" : "You Lose!", i_won);
+            lv_label_set_text(lbl_status_, i_won ? "You Win!" : "You Lose!");
         } else {
+            char buf[32];
             snprintf(buf, sizeof(buf), "%s Wins!", winner == PLAYER_X ? "X" : "O");
+            show_result(buf, true);
+            lv_label_set_text(lbl_status_, buf);
         }
-        lv_label_set_text(lbl_status_, buf);
         return;
     }
 
     if (board_full()) {
         game_done_ = true;
+        show_result("Draw!", false);
         lv_label_set_text(lbl_status_, "Draw!");
         return;
     }
@@ -403,6 +444,8 @@ void TicTacToe::onNetworkData(const char* json) {
     if (cell < 0 || cell > 8) return;
 
     place_mark(cell);
-    my_turn_ = true;
-    update_status();
+    if (!game_done_) {
+        my_turn_ = true;
+        update_status();
+    }
 }

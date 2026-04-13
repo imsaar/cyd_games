@@ -79,6 +79,12 @@ static void expire_peers() {
 
 static void handle_packet(char* buf, int len, IPAddress remote) {
     buf[len] = '\0';
+
+    // Save a copy before parsing — ArduinoJson 6 zero-copy mode
+    // modifies buf in-place, corrupting it for later re-parsing.
+    char raw[256];
+    memcpy(raw, buf, len + 1);
+
     StaticJsonDocument<256> doc;
     if (deserializeJson(doc, buf)) return;
 
@@ -109,10 +115,10 @@ static void handle_packet(char* buf, int len, IPAddress remote) {
             accept_cb(from);
         }
     } else if (strcmp(type, "move") == 0) {
-        Serial.printf("[Discovery] Move received from %s: %s\n",
-                      remote.toString().c_str(), buf);
+        Serial.printf("[Discovery] Move from %s: %s\n",
+                      remote.toString().c_str(), raw);
         if (gamedata_cb) {
-            gamedata_cb(buf);
+            gamedata_cb(raw);  // Pass uncorrupted copy
         } else {
             Serial.println("[Discovery] No gamedata_cb registered!");
         }

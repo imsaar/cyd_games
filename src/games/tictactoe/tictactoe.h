@@ -45,6 +45,7 @@ private:
     bool board_full();
     void update_status();
     void send_move(int idx);
+    void show_result(const char* text, bool is_win);
 
     static void cell_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
