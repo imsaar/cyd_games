@@ -1,0 +1,197 @@
+#include "discovery.h"
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#include <ArduinoJson.h>
+
+static WiFiUDP udp;
+static Peer peers[MAX_PEERS];
+static int  peer_count = 0;
+static char my_name[12] = "";
+static char my_game[16] = "";
+static char my_state[12] = "menu";
+
+static InviteCallback   invite_cb   = nullptr;
+static InviteCallback   accept_cb   = nullptr;
+static GameDataCallback gamedata_cb = nullptr;
+
+static uint32_t last_announce = 0;
+
+static void build_name() {
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    snprintf(my_name, sizeof(my_name), "CYD-%02X%02X", mac[4], mac[5]);
+}
+
+static void send_announce() {
+    if (strlen(my_game) == 0) return;  // Only announce when in a game lobby
+
+    StaticJsonDocument<200> doc;
+    doc["type"]  = "announce";
+    doc["name"]  = my_name;
+    doc["ip"]    = WiFi.localIP().toString();
+    doc["game"]  = my_game;
+    doc["fw"]    = FW_VERSION;
+    doc["state"] = my_state;
+
+    char buf[200];
+    size_t len = serializeJson(doc, buf, sizeof(buf));
+
+    udp.beginPacket(IPAddress(255, 255, 255, 255), DISCOVERY_PORT);
+    udp.write((uint8_t*)buf, len);
+    udp.endPacket();
+}
+
+static void add_or_update_peer(const char* name, IPAddress ip, const char* game, const char* state) {
+    // Don't add ourselves
+    if (ip == WiFi.localIP()) return;
+
+    // Update existing
+    for (int i = 0; i < peer_count; i++) {
+        if (peers[i].ip == ip) {
+            strncpy(peers[i].game, game, sizeof(peers[i].game) - 1);
+            strncpy(peers[i].state, state, sizeof(peers[i].state) - 1);
+            peers[i].last_seen = millis();
+            return;
+        }
+    }
+
+    // Add new
+    if (peer_count < MAX_PEERS) {
+        Peer& p = peers[peer_count++];
+        strncpy(p.name, name, sizeof(p.name) - 1);
+        p.ip = ip;
+        strncpy(p.game, game, sizeof(p.game) - 1);
+        strncpy(p.state, state, sizeof(p.state) - 1);
+        p.last_seen = millis();
+    }
+}
+
+static void expire_peers() {
+    uint32_t now = millis();
+    for (int i = 0; i < peer_count; ) {
+        if (now - peers[i].last_seen > 6000) {
+            peers[i] = peers[--peer_count];
+        } else {
+            i++;
+        }
+    }
+}
+
+static void handle_packet(char* buf, int len, IPAddress remote) {
+    buf[len] = '\0';
+    StaticJsonDocument<256> doc;
+    if (deserializeJson(doc, buf)) return;
+
+    const char* type = doc["type"];
+    if (!type) return;
+
+    if (strcmp(type, "announce") == 0) {
+        add_or_update_peer(
+            doc["name"] | "?",
+            remote,
+            doc["game"] | "",
+            doc["state"] | ""
+        );
+    } else if (strcmp(type, "invite") == 0) {
+        if (invite_cb) {
+            Peer from;
+            strncpy(from.name, doc["name"] | "?", sizeof(from.name) - 1);
+            from.ip = remote;
+            strncpy(from.game, doc["game"] | "", sizeof(from.game) - 1);
+            invite_cb(from);
+        }
+    } else if (strcmp(type, "accept") == 0) {
+        if (accept_cb) {
+            Peer from;
+            strncpy(from.name, doc["name"] | "?", sizeof(from.name) - 1);
+            from.ip = remote;
+            strncpy(from.game, doc["game"] | "", sizeof(from.game) - 1);
+            accept_cb(from);
+        }
+    } else if (strcmp(type, "move") == 0) {
+        Serial.printf("[Discovery] Move received from %s: %s\n",
+                      remote.toString().c_str(), buf);
+        if (gamedata_cb) {
+            gamedata_cb(buf);
+        } else {
+            Serial.println("[Discovery] No gamedata_cb registered!");
+        }
+    }
+}
+
+void discovery_init() {
+    build_name();
+    udp.begin(DISCOVERY_PORT);
+    Serial.printf("[Discovery] %s listening on port %d\n", my_name, DISCOVERY_PORT);
+}
+
+void discovery_loop() {
+    // Send announcement every 2 seconds
+    if (millis() - last_announce > 2000) {
+        last_announce = millis();
+        send_announce();
+        expire_peers();
+    }
+
+    // Receive packets
+    int size = udp.parsePacket();
+    while (size > 0) {
+        char buf[256];
+        int len = udp.read(buf, sizeof(buf) - 1);
+        if (len > 0) {
+            handle_packet(buf, len, udp.remoteIP());
+        }
+        size = udp.parsePacket();
+    }
+}
+
+void discovery_set_game(const char* game, const char* state) {
+    strncpy(my_game, game, sizeof(my_game) - 1);
+    strncpy(my_state, state, sizeof(my_state) - 1);
+}
+
+void discovery_clear_game() {
+    my_game[0] = '\0';
+    strncpy(my_state, "menu", sizeof(my_state) - 1);
+}
+
+static void send_json_to(IPAddress ip, StaticJsonDocument<200>& doc) {
+    char buf[200];
+    size_t len = serializeJson(doc, buf, sizeof(buf));
+    udp.beginPacket(ip, DISCOVERY_PORT);
+    udp.write((uint8_t*)buf, len);
+    udp.endPacket();
+}
+
+void discovery_send_invite(IPAddress peer_ip) {
+    StaticJsonDocument<200> doc;
+    doc["type"] = "invite";
+    doc["name"] = my_name;
+    doc["ip"]   = WiFi.localIP().toString();
+    doc["game"] = my_game;
+    send_json_to(peer_ip, doc);
+}
+
+void discovery_send_accept(IPAddress peer_ip) {
+    StaticJsonDocument<200> doc;
+    doc["type"] = "accept";
+    doc["name"] = my_name;
+    doc["ip"]   = WiFi.localIP().toString();
+    doc["game"] = my_game;
+    send_json_to(peer_ip, doc);
+}
+
+void discovery_send_game_data(IPAddress peer_ip, const char* json) {
+    Serial.printf("[Discovery] Sending move to %s: %s\n",
+                  peer_ip.toString().c_str(), json);
+    udp.beginPacket(peer_ip, DISCOVERY_PORT);
+    udp.write((uint8_t*)json, strlen(json));
+    udp.endPacket();
+}
+
+void discovery_on_invite(InviteCallback cb) { invite_cb = cb; }
+void discovery_on_accept(InviteCallback cb) { accept_cb = cb; }
+void discovery_on_game_data(GameDataCallback cb) { gamedata_cb = cb; }
+
+int discovery_peer_count() { return peer_count; }
+const Peer* discovery_get_peers() { return peers; }

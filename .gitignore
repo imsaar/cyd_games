@@ -1,0 +1,6 @@
+.pio
+include/secrets.h
+.vscode
+.DS_Store
+*.swp
+*.swo
