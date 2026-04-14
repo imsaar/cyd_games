@@ -2,18 +2,16 @@
 #include "ui_common.h"
 #include "screen_manager.h"
 #include "../hal/backlight.h"
+#include "../hal/prefs.h"
+#include "../hal/display.h"
 #include <WiFi.h>
 #include <Arduino.h>
 #include <esp_ota_ops.h>
-#include <TFT_eSPI.h>
-
-extern TFT_eSPI tft;  // Declared in display.cpp
 
 static lv_obj_t* lbl_info = nullptr;
 static lv_obj_t* slider_bl = nullptr;
 static lv_obj_t* lbl_bl_val = nullptr;
 static lv_obj_t* sw_invert = nullptr;
-static bool inverted = false;
 
 static void update_info_text() {
     if (!lbl_info) return;
@@ -52,6 +50,7 @@ static void brightness_cb(lv_event_t* e) {
     lv_obj_t* sl = lv_event_get_target(e);
     int val = lv_slider_get_value(sl);
     backlight_set((uint8_t)val);
+    prefs_set_brightness((uint8_t)val);
     if (lbl_bl_val) {
         char buf[8];
         snprintf(buf, sizeof(buf), "%d%%", val * 100 / 255);
@@ -61,8 +60,9 @@ static void brightness_cb(lv_event_t* e) {
 
 static void invert_cb(lv_event_t* e) {
     lv_obj_t* sw = lv_event_get_target(e);
-    inverted = lv_obj_has_state(sw, LV_STATE_CHECKED);
-    tft.invertDisplay(inverted);
+    bool inverted = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    display_set_inverted(inverted);
+    prefs_set_inverted(inverted);
 }
 
 lv_obj_t* screen_settings_create() {
@@ -95,18 +95,24 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_style_text_font(bl_label, &lv_font_montserrat_12, 0);
     lv_obj_set_pos(bl_label, 0, 8);
 
+    uint8_t saved_bright = prefs_get_brightness();
+
     slider_bl = lv_slider_create(bl_row);
     lv_obj_set_size(slider_bl, 150, 10);
     lv_obj_set_pos(slider_bl, 85, 10);
     lv_slider_set_range(slider_bl, 20, 255);
-    lv_slider_set_value(slider_bl, 255, LV_ANIM_OFF);
+    lv_slider_set_value(slider_bl, saved_bright, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(slider_bl, UI_COLOR_CARD, 0);
     lv_obj_set_style_bg_color(slider_bl, UI_COLOR_ACCENT, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(slider_bl, UI_COLOR_TEXT, LV_PART_KNOB);
     lv_obj_add_event_cb(slider_bl, brightness_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     lbl_bl_val = lv_label_create(bl_row);
-    lv_label_set_text(lbl_bl_val, "100%");
+    {
+        char pct[8];
+        snprintf(pct, sizeof(pct), "%d%%", saved_bright * 100 / 255);
+        lv_label_set_text(lbl_bl_val, pct);
+    }
     lv_obj_set_style_text_color(lbl_bl_val, UI_COLOR_TEXT, 0);
     lv_obj_set_style_text_font(lbl_bl_val, &lv_font_montserrat_12, 0);
     lv_obj_set_pos(lbl_bl_val, 250, 8);
@@ -126,7 +132,7 @@ lv_obj_t* screen_settings_create() {
     sw_invert = lv_switch_create(inv_row);
     lv_obj_set_pos(sw_invert, 110, 2);
     lv_obj_set_size(sw_invert, 40, 22);
-    if (inverted) lv_obj_add_state(sw_invert, LV_STATE_CHECKED);
+    if (prefs_get_inverted()) lv_obj_add_state(sw_invert, LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_CARD, 0);
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_invert, invert_cb, LV_EVENT_VALUE_CHANGED, NULL);

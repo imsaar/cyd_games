@@ -89,3 +89,7 @@ void display_init() {
 lv_disp_t* display_get() {
     return disp;
 }
+
+void display_set_inverted(bool inverted) {
+    tft.invertDisplay(inverted);
+}

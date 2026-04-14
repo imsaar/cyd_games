@@ -10,6 +10,7 @@
 #include "config.h"
 #include "hal/display.h"
 #include "hal/backlight.h"
+#include "hal/prefs.h"
 #include "hal/led.h"
 #include "hal/audio.h"
 #include "net/wifi_manager.h"
@@ -27,8 +28,13 @@ void setup() {
     // Hardware init
     display_init();
     backlight_init();
+    prefs_init();
     led_init();
     audio_init();
+
+    // Restore saved display preferences
+    backlight_set(prefs_get_brightness());
+    display_set_inverted(prefs_get_inverted());
 
     // Brief LED flash to confirm boot
     led_set(0, 0, 50);
