@@ -14,6 +14,7 @@ enum ScreenID {
     SCREEN_CHESS,
     SCREEN_ANAGRAM,
     SCREEN_WHACK_MOLE,
+    SCREEN_CUP_PONG,
     SCREEN_COUNT
 };
 

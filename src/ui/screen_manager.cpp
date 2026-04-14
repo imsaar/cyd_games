@@ -11,6 +11,7 @@
 #include "../games/chess/chess.h"
 #include "../games/anagram/anagram.h"
 #include "../games/whack_mole/whack_mole.h"
+#include "../games/cup_pong/cup_pong.h"
 
 static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
@@ -26,6 +27,7 @@ static Checkers    checkers_game;
 static Chess       chess_game;
 static Anagram     anagram_game;
 static WhackMole   whack_mole_game;
+static CupPong     cup_pong_game;
 
 void screen_manager_init() {
     screens[SCREEN_MENU] = {
@@ -103,6 +105,13 @@ void screen_manager_init() {
         []() { whack_mole_game.update(); },
         []() { whack_mole_game.destroy(); },
         true, whack_mole_game.maxPlayers()
+    };
+    screens[SCREEN_CUP_PONG] = {
+        cup_pong_game.name(),
+        []() -> lv_obj_t* { return cup_pong_game.createScreen(); },
+        []() { cup_pong_game.update(); },
+        []() { cup_pong_game.destroy(); },
+        true, cup_pong_game.maxPlayers()
     };
 }
 

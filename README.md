@@ -24,6 +24,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words |
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
 | Whack-a-Mole | 1P | - | Tap moles before they hide, avoid bombs, 30s timer |
+| Cup Pong | 1P | - | Aim and throw balls into a triangle of 10 cups |
 
 ## Features
 
@@ -95,7 +96,7 @@ Create `include/secrets.h` (gitignored):
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
 │   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
-│                           # Whack-a-Mole
+│                           # Whack-a-Mole, Cup Pong
 ```
 
 ## Multiplayer
