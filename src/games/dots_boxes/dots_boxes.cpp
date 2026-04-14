@@ -482,6 +482,8 @@ void DotsBoxes::cpu_move() {
 }
 
 void DotsBoxes::send_move(int idx) {
+    Serial.printf("[DB] send_move line=%d to %s, current=%d\n",
+                  idx, peer_ip_.toString().c_str(), (int)current_);
     StaticJsonDocument<128> doc;
     doc["type"] = "move";
     doc["game"] = "dotsboxes";
@@ -554,11 +556,13 @@ void DotsBoxes::destroy() {
 }
 
 void DotsBoxes::onNetworkData(const char* json) {
+    Serial.printf("[DB] onNetworkData: %s\n", json);
     StaticJsonDocument<128> doc;
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "dotsboxes") != 0) return;
     int line = doc["line"] | -1;
+    Serial.printf("[DB] received line=%d, current=%d\n", line, (int)current_);
     if (line < 0 || line >= TOTAL_LINES) return;
 
     bool completed = place_line(line);
