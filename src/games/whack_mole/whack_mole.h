@@ -24,24 +24,29 @@ private:
     lv_obj_t* hole_lbls_[HOLES] = {};
 
     // Game state
-    bool mole_up_[HOLES] = {};       // true if mole is showing
-    bool mole_bomb_[HOLES] = {};     // true if this is a bomb (penalty)
-    uint32_t mole_time_[HOLES] = {}; // when mole appeared
+    bool mole_up_[HOLES] = {};
+    bool mole_bomb_[HOLES] = {};     // true = baby (don't whack)
+    uint32_t mole_time_[HOLES] = {};
     int score_ = 0;
     int round_ = 0;
     int misses_ = 0;
     bool game_done_ = false;
     uint32_t game_start_ = 0;
-    int game_time_ = 30;             // seconds
+    int game_time_ = 30;
+
+    // Whack effect
+    bool effect_active_[HOLES] = {};
+    uint32_t effect_time_[HOLES] = {};
 
     // Spawn timing
     uint32_t last_spawn_ = 0;
-    int spawn_interval_ = 800;       // ms between spawns, decreases
-    int mole_duration_ = 1200;       // ms mole stays up, decreases
+    int spawn_interval_ = 800;
+    int mole_duration_ = 1200;
 
     void spawn_mole();
     void hide_mole(int idx);
     void whack(int idx);
+    void show_whack_effect(int idx, bool good);
     void update_display();
     void show_result();
 
