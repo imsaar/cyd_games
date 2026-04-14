@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 static uint32_t last_attempt = 0;
+static bool disabled = false;
 
 void wifi_init() {
     WiFi.mode(WIFI_STA);
@@ -24,10 +25,27 @@ void wifi_init() {
 }
 
 bool wifi_connected() {
-    return WiFi.status() == WL_CONNECTED;
+    return !disabled && WiFi.status() == WL_CONNECTED;
+}
+
+bool wifi_disabled() {
+    return disabled;
+}
+
+void wifi_disable() {
+    disabled = true;
+    WiFi.disconnect(false);  // keep STA mode active for ESP-NOW
+    Serial.println("[WiFi] Disabled (ESP-NOW mode)");
+}
+
+void wifi_enable() {
+    disabled = false;
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.println("[WiFi] Re-enabling...");
 }
 
 void wifi_loop() {
+    if (disabled) return;
     if (WiFi.status() != WL_CONNECTED && millis() - last_attempt > 15000) {
         last_attempt = millis();
         Serial.println("[WiFi] Reconnecting...");

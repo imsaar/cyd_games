@@ -26,3 +26,8 @@ void        discovery_on_accept(InviteCallback cb);
 void        discovery_on_game_data(GameDataCallback cb);
 int         discovery_peer_count();
 const Peer* discovery_get_peers();
+void        discovery_deinit();
+void        discovery_reinit();  // Tear down and re-init (for transport switch)
+bool        discovery_is_espnow();
+void        discovery_set_name(const char* name);  // Set device name (persisted)
+const char* discovery_get_name();

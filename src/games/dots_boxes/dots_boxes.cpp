@@ -127,7 +127,7 @@ lv_obj_t* DotsBoxes::create_mode_select() {
     lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 42);
     lv_obj_align(b1, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_event_cb(b1, mode_local_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* b2 = ui_create_btn(scr, "Online (2P)", 140, 42);
+    lv_obj_t* b2 = ui_create_btn(scr, "Network (2P)", 140, 42);
     lv_obj_align(b2, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_event_cb(b2, mode_online_cb, LV_EVENT_CLICKED, NULL);
     return scr;

@@ -125,7 +125,7 @@ lv_obj_t* TicTacToe::create_mode_select() {
     lv_obj_align(btn_local, LV_ALIGN_CENTER, 0, -30);
     lv_obj_add_event_cb(btn_local, mode_local_cb, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* btn_online = ui_create_btn(scr, "Online (2P)", 140, 50);
+    lv_obj_t* btn_online = ui_create_btn(scr, "Network (2P)", 140, 50);
     lv_obj_align(btn_online, LV_ALIGN_CENTER, 0, 35);
     lv_obj_add_event_cb(btn_online, mode_online_cb, LV_EVENT_CLICKED, NULL);
 

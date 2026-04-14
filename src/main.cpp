@@ -43,11 +43,11 @@ void setup() {
     wifi_init();
     if (wifi_connected()) {
         ota_init();
-        discovery_init();
-        led_set(0, 50, 0);  // Green = connected
+        led_set(0, 50, 0);  // Green = WiFi connected
     } else {
-        led_set(50, 0, 0);  // Red = no WiFi
+        led_set(50, 50, 0); // Yellow = ESP-NOW mode
     }
+    discovery_init();  // Works in both UDP and ESP-NOW modes
 
     // UI
     screen_manager_init();
@@ -65,9 +65,11 @@ void loop() {
 
     if (wifi_connected()) {
         ota_loop();
-        discovery_loop();
     }
-    wifi_loop();
+    discovery_loop();  // Always run — works in both UDP and ESP-NOW
+    if (!wifi_disabled()) {
+        wifi_loop();
+    }
 
     delay(5);
 }
