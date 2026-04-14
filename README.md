@@ -23,8 +23,8 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Chess | 1-2P | Yes | vs CPU, castling, en passant, promotion, check/checkmate |
 | Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words |
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
-| Whack-a-Mole | 1P | - | Tap moles before they hide, avoid bombs, 30s timer |
-| Cup Pong | 1P | - | Aim and throw balls into a triangle of 10 cups |
+| Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
+| Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
 
 ## Features
 
