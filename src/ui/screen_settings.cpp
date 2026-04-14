@@ -4,6 +4,8 @@
 #include "../hal/backlight.h"
 #include "../hal/prefs.h"
 #include "../hal/display.h"
+#include "../net/wifi_manager.h"
+#include "../net/discovery.h"
 #include <WiFi.h>
 #include <Arduino.h>
 #include <esp_ota_ops.h>
@@ -63,6 +65,37 @@ static void invert_cb(lv_event_t* e) {
     bool inverted = lv_obj_has_state(sw, LV_STATE_CHECKED);
     display_set_inverted(inverted);
     prefs_set_inverted(inverted);
+}
+
+static lv_obj_t* lbl_wifi_status = nullptr;
+
+static void update_wifi_status() {
+    if (!lbl_wifi_status) return;
+    if (wifi_disabled()) {
+        lv_label_set_text(lbl_wifi_status, "OFF (ESP-NOW)");
+        lv_obj_set_style_text_color(lbl_wifi_status, UI_COLOR_WARNING, 0);
+    } else if (wifi_connected()) {
+        lv_label_set_text(lbl_wifi_status, "Connected");
+        lv_obj_set_style_text_color(lbl_wifi_status, UI_COLOR_SUCCESS, 0);
+    } else {
+        lv_label_set_text(lbl_wifi_status, "Connecting...");
+        lv_obj_set_style_text_color(lbl_wifi_status, UI_COLOR_DIM, 0);
+    }
+}
+
+static void wifi_toggle_cb(lv_event_t* e) {
+    lv_obj_t* sw = lv_event_get_target(e);
+    bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    if (!enabled) {
+        wifi_disable();
+        discovery_reinit();  // Switch to ESP-NOW
+    } else {
+        wifi_enable();
+        // Discovery will reinit on next settings open or can be triggered
+        // For now, reinit immediately (will start in UDP if WiFi reconnects fast)
+        discovery_reinit();
+    }
+    update_wifi_status();
 }
 
 lv_obj_t* screen_settings_create() {
@@ -136,6 +169,31 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_CARD, 0);
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_invert, invert_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // ── WiFi toggle ──
+    lv_obj_t* wifi_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(wifi_row);
+    lv_obj_set_size(wifi_row, 300, 30);
+    lv_obj_clear_flag(wifi_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* wifi_label = lv_label_create(wifi_row);
+    lv_label_set_text(wifi_label, "WiFi");
+    lv_obj_set_style_text_color(wifi_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(wifi_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(wifi_label, 0, 6);
+
+    lv_obj_t* sw_wifi = lv_switch_create(wifi_row);
+    lv_obj_set_pos(sw_wifi, 110, 2);
+    lv_obj_set_size(sw_wifi, 40, 22);
+    if (!wifi_disabled()) lv_obj_add_state(sw_wifi, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw_wifi, UI_COLOR_CARD, 0);
+    lv_obj_set_style_bg_color(sw_wifi, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_wifi, wifi_toggle_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lbl_wifi_status = lv_label_create(wifi_row);
+    lv_obj_set_style_text_font(lbl_wifi_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(lbl_wifi_status, 165, 6);
+    update_wifi_status();
 
     // ── Info text ──
     lbl_info = lv_label_create(cont);

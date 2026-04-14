@@ -36,6 +36,7 @@
 #define DISCOVERY_PORT  4328
 #define OTA_PORT          80
 #define MAX_PEERS          8
+#define ESPNOW_CHANNEL    1
 
 // ── LVGL buffers ──
 #define LVGL_BUF_LINES   10

@@ -1,9 +1,14 @@
 #include "discovery.h"
+#include "wifi_manager.h"
+#include "espnow_transport.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 
+enum TransportMode { TRANSPORT_UDP, TRANSPORT_ESPNOW };
+
 static WiFiUDP udp;
+static TransportMode transport = TRANSPORT_UDP;
 static Peer peers[MAX_PEERS];
 static int  peer_count = 0;
 static char my_name[12] = "";
@@ -28,22 +33,31 @@ static void send_announce() {
     StaticJsonDocument<200> doc;
     doc["type"]  = "announce";
     doc["name"]  = my_name;
-    doc["ip"]    = WiFi.localIP().toString();
     doc["game"]  = my_game;
     doc["fw"]    = FW_VERSION;
     doc["state"] = my_state;
 
-    char buf[200];
-    size_t len = serializeJson(doc, buf, sizeof(buf));
-
-    udp.beginPacket(IPAddress(255, 255, 255, 255), DISCOVERY_PORT);
-    udp.write((uint8_t*)buf, len);
-    udp.endPacket();
+    if (transport == TRANSPORT_UDP) {
+        doc["ip"] = WiFi.localIP().toString();
+        char buf[200];
+        size_t len = serializeJson(doc, buf, sizeof(buf));
+        udp.beginPacket(IPAddress(255, 255, 255, 255), DISCOVERY_PORT);
+        udp.write((uint8_t*)buf, len);
+        udp.endPacket();
+    } else {
+        char buf[200];
+        size_t len = serializeJson(doc, buf, sizeof(buf));
+        espnow_send_broadcast((uint8_t*)buf, len);
+    }
 }
 
 static void add_or_update_peer(const char* name, IPAddress ip, const char* game, const char* state) {
     // Don't add ourselves
-    if (ip == WiFi.localIP()) return;
+    if (transport == TRANSPORT_UDP) {
+        if (ip == WiFi.localIP()) return;
+    } else {
+        if (ip == espnow_my_ip()) return;
+    }
 
     // Update existing
     for (int i = 0; i < peer_count; i++) {
@@ -127,8 +141,31 @@ static void handle_packet(char* buf, int len, IPAddress remote) {
 
 void discovery_init() {
     build_name();
-    udp.begin(DISCOVERY_PORT);
-    Serial.printf("[Discovery] %s listening on port %d\n", my_name, DISCOVERY_PORT);
+
+    if (wifi_connected()) {
+        transport = TRANSPORT_UDP;
+        udp.begin(DISCOVERY_PORT);
+        Serial.printf("[Discovery] UDP mode, %s on port %d\n", my_name, DISCOVERY_PORT);
+    } else {
+        transport = TRANSPORT_ESPNOW;
+        espnow_init(ESPNOW_CHANNEL);
+        Serial.printf("[Discovery] ESP-NOW mode, %s\n", my_name);
+    }
+}
+
+void discovery_deinit() {
+    if (transport == TRANSPORT_UDP) {
+        udp.stop();
+    } else {
+        espnow_deinit();
+    }
+}
+
+void discovery_reinit() {
+    discovery_deinit();
+    peer_count = 0;
+    last_announce = 0;
+    discovery_init();
 }
 
 void discovery_loop() {
@@ -139,15 +176,26 @@ void discovery_loop() {
         expire_peers();
     }
 
-    // Receive packets
-    int size = udp.parsePacket();
-    while (size > 0) {
-        char buf[256];
-        int len = udp.read(buf, sizeof(buf) - 1);
-        if (len > 0) {
-            handle_packet(buf, len, udp.remoteIP());
+    if (transport == TRANSPORT_UDP) {
+        // Receive UDP packets
+        int size = udp.parsePacket();
+        while (size > 0) {
+            char buf[256];
+            int len = udp.read(buf, sizeof(buf) - 1);
+            if (len > 0) {
+                handle_packet(buf, len, udp.remoteIP());
+            }
+            size = udp.parsePacket();
         }
-        size = udp.parsePacket();
+    } else {
+        // Drain ESP-NOW receive queue
+        uint8_t mac[6];
+        uint8_t buf[256];
+        size_t len;
+        while (espnow_receive(mac, buf, sizeof(buf) - 1, &len)) {
+            IPAddress remote = espnow_mac_to_ip(mac);
+            handle_packet((char*)buf, (int)len, remote);
+        }
     }
 }
 
@@ -164,17 +212,30 @@ void discovery_clear_game() {
 static void send_json_to(IPAddress ip, StaticJsonDocument<200>& doc) {
     char buf[200];
     size_t len = serializeJson(doc, buf, sizeof(buf));
-    udp.beginPacket(ip, DISCOVERY_PORT);
-    udp.write((uint8_t*)buf, len);
-    udp.endPacket();
+
+    if (transport == TRANSPORT_UDP) {
+        udp.beginPacket(ip, DISCOVERY_PORT);
+        udp.write((uint8_t*)buf, len);
+        udp.endPacket();
+    } else {
+        uint8_t mac[6];
+        if (espnow_ip_to_mac(ip, mac)) {
+            espnow_send_unicast(mac, (uint8_t*)buf, len);
+        } else {
+            Serial.printf("[Discovery] No MAC for IP %s, broadcasting\n", ip.toString().c_str());
+            espnow_send_broadcast((uint8_t*)buf, len);
+        }
+    }
 }
 
 void discovery_send_invite(IPAddress peer_ip) {
     StaticJsonDocument<200> doc;
     doc["type"] = "invite";
     doc["name"] = my_name;
-    doc["ip"]   = WiFi.localIP().toString();
     doc["game"] = my_game;
+    if (transport == TRANSPORT_UDP) {
+        doc["ip"] = WiFi.localIP().toString();
+    }
     send_json_to(peer_ip, doc);
 }
 
@@ -182,17 +243,34 @@ void discovery_send_accept(IPAddress peer_ip) {
     StaticJsonDocument<200> doc;
     doc["type"] = "accept";
     doc["name"] = my_name;
-    doc["ip"]   = WiFi.localIP().toString();
     doc["game"] = my_game;
+    if (transport == TRANSPORT_UDP) {
+        doc["ip"] = WiFi.localIP().toString();
+    }
     send_json_to(peer_ip, doc);
 }
 
 void discovery_send_game_data(IPAddress peer_ip, const char* json) {
     Serial.printf("[Discovery] Sending move to %s: %s\n",
                   peer_ip.toString().c_str(), json);
-    udp.beginPacket(peer_ip, DISCOVERY_PORT);
-    udp.write((uint8_t*)json, strlen(json));
-    udp.endPacket();
+
+    if (transport == TRANSPORT_UDP) {
+        udp.beginPacket(peer_ip, DISCOVERY_PORT);
+        udp.write((uint8_t*)json, strlen(json));
+        udp.endPacket();
+    } else {
+        uint8_t mac[6];
+        size_t len = strlen(json);
+        if (len > 250) {
+            Serial.println("[Discovery] ESP-NOW payload too large!");
+            return;
+        }
+        if (espnow_ip_to_mac(peer_ip, mac)) {
+            espnow_send_unicast(mac, (uint8_t*)json, len);
+        } else {
+            Serial.println("[Discovery] No MAC for peer, cannot send game data");
+        }
+    }
 }
 
 void discovery_on_invite(InviteCallback cb) { invite_cb = cb; }
@@ -201,3 +279,5 @@ void discovery_on_game_data(GameDataCallback cb) { gamedata_cb = cb; }
 
 int discovery_peer_count() { return peer_count; }
 const Peer* discovery_get_peers() { return peers; }
+
+bool discovery_is_espnow() { return transport == TRANSPORT_ESPNOW; }
