@@ -10,6 +10,7 @@
 #include "../games/checkers/checkers.h"
 #include "../games/chess/chess.h"
 #include "../games/anagram/anagram.h"
+#include "../games/whack_mole/whack_mole.h"
 
 static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
@@ -24,6 +25,7 @@ static DotsBoxes   dots_boxes_game;
 static Checkers    checkers_game;
 static Chess       chess_game;
 static Anagram     anagram_game;
+static WhackMole   whack_mole_game;
 
 void screen_manager_init() {
     screens[SCREEN_MENU] = {
@@ -94,6 +96,13 @@ void screen_manager_init() {
         []() { dots_boxes_game.update(); },
         []() { dots_boxes_game.destroy(); },
         true, dots_boxes_game.maxPlayers()
+    };
+    screens[SCREEN_WHACK_MOLE] = {
+        whack_mole_game.name(),
+        []() -> lv_obj_t* { return whack_mole_game.createScreen(); },
+        []() { whack_mole_game.update(); },
+        []() { whack_mole_game.destroy(); },
+        true, whack_mole_game.maxPlayers()
     };
 }
 
