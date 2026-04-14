@@ -54,6 +54,14 @@ void Anagram::next_word() {
     answer_len_ = 0;
     round_start_ = millis();
 
+    // Restore clickability on all letter buttons for the new word
+    for (int i = 0; i < MAX_LETTERS; i++) {
+        if (letter_btns_[i]) {
+            lv_obj_set_style_bg_opa(letter_btns_[i], LV_OPA_COVER, 0);
+            lv_obj_add_flag(letter_btns_[i], LV_OBJ_FLAG_CLICKABLE);
+        }
+    }
+
     update_display();
 }
 
@@ -124,6 +132,13 @@ void Anagram::check_answer() {
         }
         memset(answer_buf_, 0, sizeof(answer_buf_));
         answer_len_ = 0;
+        // Re-enable all letter buttons
+        for (int i = 0; i < word_len_; i++) {
+            if (letter_btns_[i]) {
+                lv_obj_set_style_bg_opa(letter_btns_[i], LV_OPA_COVER, 0);
+                lv_obj_add_flag(letter_btns_[i], LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
         update_display();
         // Reset color after brief display
         if (lbl_answer_) {
@@ -213,6 +228,7 @@ void Anagram::skip_cb(lv_event_t* e) {
 lv_obj_t* Anagram::createScreen() {
     s_self = this;
     screen_ = ui_create_screen();
+    lv_obj_clear_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(screen_);
 
     lbl_score_ = lv_label_create(screen_);
