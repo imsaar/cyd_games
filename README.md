@@ -13,14 +13,14 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 ## Games
 
 | Game | Players | Network | Description |
-|------|---------|--------|-------------|
+|------|---------|---------|-------------|
 | Snake | 1P | - | D-pad controlled, progressive speed |
 | Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
-| Pong | 1-2P | Yes | Touch paddle, vs CPU or online, first to 10 |
-| Connect 4 | 1-2P | Yes | vs CPU, local, or online, 4-direction win check |
-| Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/online |
+| Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
+| Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
+| Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
 | Checkers | 1-2P | Yes | vs CPU, full rules with kings and forced jumps |
-| Chess | 1-2P | Yes | vs CPU, castling, en passant, promotion, check/checkmate |
+| Chess | 1-2P | Yes | vs CPU, Unicode piece symbols, full rules |
 | Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words |
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
@@ -31,8 +31,10 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 - **LVGL UI** — Dark-themed interface with animated screen transitions
 - **OTA Updates** — Custom web UI at `http://<IP>/update` showing device info, firmware version, and partition status
 - **Dual OTA Partitions** — app0/app1 alternating, with automatic rollback protection
-- **Network Multiplayer** — UDP broadcast peer discovery on port 4328, invite/accept lobby system
-- **Settings Screen** — Brightness slider, display inversion toggle, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
+- **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system
+- **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
+- **Persistent Settings** — Brightness, display inversion, and device name saved to NVS across power cycles
+- **Settings Screen** — Device name editor, brightness slider, display inversion toggle, WiFi on/off switch, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
 ## Build & Flash
 
@@ -79,6 +81,8 @@ Create `include/secrets.h` (gitignored):
 #define WIFI_PASSWORD "YourPassword"
 ```
 
+If WiFi is unavailable or disabled in Settings, multiplayer automatically uses ESP-NOW instead.
+
 ## Project Structure
 
 ```
@@ -91,8 +95,8 @@ Create `include/secrets.h` (gitignored):
 │   └── secrets.h           # WiFi credentials (gitignored)
 ├── src/
 │   ├── main.cpp            # Setup/loop orchestration
-│   ├── hal/                # Display, backlight, LED, audio drivers
-│   ├── net/                # WiFi, OTA, UDP discovery
+│   ├── hal/                # Display, backlight, LED, audio, preferences
+│   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
 │   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
@@ -101,7 +105,14 @@ Create `include/secrets.h` (gitignored):
 
 ## Multiplayer
 
-Two-player games use UDP broadcast discovery on the local network:
+Two-player games support two transport modes:
+
+- **WiFi (UDP)** — Broadcast discovery on the local network (port 4328)
+- **ESP-NOW** — Direct peer-to-peer, no WiFi network needed, ~200m range
+
+The transport is selected automatically at boot based on WiFi connectivity, or manually via the WiFi toggle in Settings.
+
+### How to play
 
 1. Both devices select "Network" from the game menu
 2. Peers appear in the lobby list within seconds
@@ -110,3 +121,7 @@ Two-player games use UDP broadcast discovery on the local network:
 5. Game starts once invite is accepted
 
 Each game syncs state independently — turn-based games send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.
+
+### Device name
+
+Set a custom device name in Settings (persisted across reboots). This name appears in lobby lists and invite dialogs instead of the default MAC-based `CYD-XXYY`.
