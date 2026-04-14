@@ -8,15 +8,23 @@ static lv_obj_t* ch_invite_msgbox = nullptr;
 static IPAddress ch_pending_ip;
 static int ch_board_ox = 0, ch_board_oy = 0;
 
-// Piece symbols (ASCII abbreviations since LVGL default fonts lack Unicode chess)
+LV_FONT_DECLARE(chess_symbols);
+
+// Unicode chess piece symbols (U+2654-U+265F)
 static const char* piece_sym(int8_t p) {
     switch (p) {
-        case  1: return "P"; case -1: return "p";
-        case  2: return "N"; case -2: return "n";
-        case  3: return "B"; case -3: return "b";
-        case  4: return "R"; case -4: return "r";
-        case  5: return "Q"; case -5: return "q";
-        case  6: return "K"; case -6: return "k";
+        case  1: return "\xe2\x99\x99"; // ♙ white pawn
+        case -1: return "\xe2\x99\x9f"; // ♟ black pawn
+        case  2: return "\xe2\x99\x98"; // ♘ white knight
+        case -2: return "\xe2\x99\x9e"; // ♞ black knight
+        case  3: return "\xe2\x99\x97"; // ♗ white bishop
+        case -3: return "\xe2\x99\x9d"; // ♝ black bishop
+        case  4: return "\xe2\x99\x96"; // ♖ white rook
+        case -4: return "\xe2\x99\x9c"; // ♜ black rook
+        case  5: return "\xe2\x99\x95"; // ♕ white queen
+        case -5: return "\xe2\x99\x9b"; // ♛ black queen
+        case  6: return "\xe2\x99\x94"; // ♔ white king
+        case -6: return "\xe2\x99\x9a"; // ♚ black king
         default: return "";
     }
 }
@@ -203,7 +211,7 @@ lv_obj_t* Chess::create_board() {
 
             lv_obj_t* lbl = lv_label_create(cell);
             lv_label_set_text(lbl, "");
-            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_font(lbl, &chess_symbols, 0);
             lv_obj_center(lbl);
             piece_labels_[idx] = lbl;
         }
