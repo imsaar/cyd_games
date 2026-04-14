@@ -74,11 +74,27 @@ void db_lobby_peer_cb(lv_event_t* e) {
 
 // ── Mode selection ──
 
+void DotsBoxes::mode_cpu_cb(lv_event_t* e) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_CPU;
+    s_self->my_player_ = P1;
+    s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
+    discovery_clear_game();
+    discovery_on_invite(nullptr);
+    discovery_on_accept(nullptr);
+    discovery_on_game_data(nullptr);
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
 void DotsBoxes::mode_local_cb(lv_event_t* e) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOCAL;
     s_self->my_player_ = P1;
     s_self->my_turn_ = true;
+    s_self->cpu_pending_ = false;
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -105,11 +121,14 @@ lv_obj_t* DotsBoxes::create_mode_select() {
     ui_create_back_btn(scr);
     lv_obj_t* title = ui_create_title(scr, "Dots & Boxes");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 50);
-    lv_obj_align(b1, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_t* b0 = ui_create_btn(scr, "vs CPU", 140, 42);
+    lv_obj_align(b0, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_add_event_cb(b0, mode_cpu_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 42);
+    lv_obj_align(b1, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_event_cb(b1, mode_local_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* b2 = ui_create_btn(scr, "Online (2P)", 140, 50);
-    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 35);
+    lv_obj_t* b2 = ui_create_btn(scr, "Online (2P)", 140, 42);
+    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_event_cb(b2, mode_online_cb, LV_EVENT_CLICKED, NULL);
     return scr;
 }
@@ -233,8 +252,9 @@ void DotsBoxes::line_cb(lv_event_t* e) {
     if (!s_self || s_self->game_done_) return;
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     if (idx < 0 || idx >= TOTAL_LINES) return;
-    if (s_self->lines_[idx]) return;  // Already placed
+    if (s_self->lines_[idx]) return;
     if (s_self->mode_ == MODE_NETWORK && !s_self->my_turn_) return;
+    if (s_self->mode_ == MODE_CPU && s_self->current_ == P2) return;
 
     bool completed = s_self->place_line(idx);
 
@@ -316,7 +336,9 @@ int DotsBoxes::check_boxes(int line_idx) {
 
 void DotsBoxes::update_status() {
     if (!lbl_status_) return;
-    if (mode_ == MODE_LOCAL) {
+    if (mode_ == MODE_CPU) {
+        lv_label_set_text(lbl_status_, current_ == P1 ? "Your turn" : "CPU...");
+    } else if (mode_ == MODE_LOCAL) {
         lv_label_set_text(lbl_status_, current_ == P1 ? "Red's turn" : "Blue's turn");
     } else {
         lv_label_set_text(lbl_status_, my_turn_ ? "Your turn" : "Waiting...");
@@ -347,6 +369,10 @@ void DotsBoxes::show_result() {
         bool draw = (score_p1_ == score_p2_);
         text = draw ? "Draw!" : (i_won ? "You Win!" : "You Lose!");
         is_win = i_won;
+    } else if (mode_ == MODE_CPU) {
+        if (score_p1_ == score_p2_) { text = "Draw!"; is_win = false; }
+        else if (score_p1_ > score_p2_) { text = "You Win!"; is_win = true; }
+        else { text = "CPU Wins!"; is_win = false; }
     } else {
         if (score_p1_ == score_p2_) { text = "Draw!"; is_win = false; }
         else if (score_p1_ > score_p2_) { text = "Red Wins!"; is_win = true; }
@@ -381,6 +407,80 @@ void DotsBoxes::show_result() {
     }, LV_EVENT_CLICKED, NULL);
 }
 
+// ── CPU AI ──
+
+// Count how many sides of each adjacent box are already filled if this line is placed
+int DotsBoxes::score_line(int idx) {
+    if (lines_[idx]) return -1000;  // Already placed
+
+    // Temporarily place the line
+    lines_[idx] = true;
+
+    int completes = 0;  // Boxes this would complete (4 sides)
+    int gives = 0;      // Boxes this would give 3rd side to (opponent can then complete)
+
+    for (int r = 0; r < BOXES; r++) {
+        for (int c = 0; c < BOXES; c++) {
+            if (boxes_[r * BOXES + c] != NONE) continue;
+            int top    = r * BOXES + c;
+            int bottom = (r + 1) * BOXES + c;
+            int left   = H_LINES + r * DOTS + c;
+            int right  = H_LINES + r * DOTS + (c + 1);
+            int count = (lines_[top] ? 1 : 0) + (lines_[bottom] ? 1 : 0) +
+                        (lines_[left] ? 1 : 0) + (lines_[right] ? 1 : 0);
+            if (count == 4) completes++;
+            else if (count == 3) gives++;
+        }
+    }
+
+    lines_[idx] = false;  // Undo
+
+    // Completing a box is great (+100 per box)
+    if (completes > 0) return 100 * completes;
+    // Giving opponent a 3-sided box is bad (-50 per box)
+    if (gives > 0) return -50 * gives;
+    // Neutral move
+    return 0;
+}
+
+void DotsBoxes::cpu_move() {
+    // Collect all available lines
+    int available[TOTAL_LINES];
+    int scores[TOTAL_LINES];
+    int n = 0;
+
+    for (int i = 0; i < TOTAL_LINES; i++) {
+        if (!lines_[i]) {
+            available[n] = i;
+            scores[n] = score_line(i);
+            n++;
+        }
+    }
+    if (n == 0) return;
+
+    // Find best score
+    int best = scores[0];
+    for (int i = 1; i < n; i++) {
+        if (scores[i] > best) best = scores[i];
+    }
+
+    // Pick randomly among best
+    int candidates[TOTAL_LINES];
+    int nc = 0;
+    for (int i = 0; i < n; i++) {
+        if (scores[i] == best) candidates[nc++] = available[i];
+    }
+
+    int pick = candidates[random(0, nc)];
+    bool completed = place_line(pick);
+
+    // If completed a box, CPU gets another turn immediately
+    if (completed && !game_done_) {
+        cpu_pending_ = true;
+        cpu_think_time_ = millis();
+    }
+}
+
 void DotsBoxes::send_move(int idx) {
     StaticJsonDocument<128> doc;
     doc["type"] = "move";
@@ -402,6 +502,17 @@ lv_obj_t* DotsBoxes::createScreen() {
 }
 
 void DotsBoxes::update() {
+    // CPU move with delay
+    if (mode_ == MODE_CPU && current_ == P2 && !game_done_) {
+        if (!cpu_pending_) {
+            cpu_pending_ = true;
+            cpu_think_time_ = millis();
+        } else if (millis() - cpu_think_time_ > 500) {
+            cpu_pending_ = false;
+            cpu_move();
+        }
+    }
+
     if (mode_ == MODE_LOBBY && lobby_list_) {
         static uint32_t last_refresh = 0;
         if (millis() - last_refresh > 2000) {
