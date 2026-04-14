@@ -12,7 +12,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 ## Games
 
-| Game | Players | Online | Description |
+| Game | Players | Network | Description |
 |------|---------|--------|-------------|
 | Snake | 1P | - | D-pad controlled, progressive speed |
 | Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
@@ -103,7 +103,7 @@ Create `include/secrets.h` (gitignored):
 
 Two-player games use UDP broadcast discovery on the local network:
 
-1. Both devices select "Online" from the game menu
+1. Both devices select "Network" from the game menu
 2. Peers appear in the lobby list within seconds
 3. Tap a peer to send an invite
 4. Other device sees an Accept/Decline popup

@@ -132,7 +132,7 @@ lv_obj_t* Connect4::create_mode_select() {
     lv_obj_align(b2, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_event_cb(b2, mode_local_cb, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* b3 = ui_create_btn(scr, "Online (2P)", 140, 42);
+    lv_obj_t* b3 = ui_create_btn(scr, "Network (2P)", 140, 42);
     lv_obj_align(b3, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_event_cb(b3, mode_online_cb, LV_EVENT_CLICKED, NULL);
 
