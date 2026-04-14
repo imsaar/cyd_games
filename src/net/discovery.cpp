@@ -1,6 +1,7 @@
 #include "discovery.h"
 #include "wifi_manager.h"
 #include "espnow_transport.h"
+#include "../hal/prefs.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
@@ -22,9 +23,13 @@ static GameDataCallback gamedata_cb = nullptr;
 static uint32_t last_announce = 0;
 
 static void build_name() {
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    snprintf(my_name, sizeof(my_name), "CYD-%02X%02X", mac[4], mac[5]);
+    // Use saved name if set, otherwise generate from MAC
+    prefs_get_name(my_name, sizeof(my_name));
+    if (my_name[0] == '\0') {
+        uint8_t mac[6];
+        WiFi.macAddress(mac);
+        snprintf(my_name, sizeof(my_name), "CYD-%02X%02X", mac[4], mac[5]);
+    }
 }
 
 static void send_announce() {
@@ -281,3 +286,13 @@ int discovery_peer_count() { return peer_count; }
 const Peer* discovery_get_peers() { return peers; }
 
 bool discovery_is_espnow() { return transport == TRANSPORT_ESPNOW; }
+
+void discovery_set_name(const char* name) {
+    strncpy(my_name, name, sizeof(my_name) - 1);
+    my_name[sizeof(my_name) - 1] = '\0';
+    prefs_set_name(name);
+}
+
+const char* discovery_get_name() {
+    return my_name;
+}

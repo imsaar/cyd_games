@@ -22,3 +22,13 @@ bool prefs_get_inverted() {
 void prefs_set_inverted(bool val) {
     nvs.putBool("invert", val);
 }
+
+void prefs_get_name(char* buf, size_t len) {
+    String s = nvs.getString("name", "");
+    strncpy(buf, s.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
+
+void prefs_set_name(const char* name) {
+    nvs.putString("name", name);
+}

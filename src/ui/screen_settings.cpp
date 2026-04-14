@@ -67,6 +67,74 @@ static void invert_cb(lv_event_t* e) {
     prefs_set_inverted(inverted);
 }
 
+static lv_obj_t* lbl_name_val = nullptr;
+static lv_obj_t* name_overlay = nullptr;
+
+static void close_name_editor(lv_event_t* e);
+static void name_kb_ready(lv_event_t* e);
+
+static void open_name_editor(lv_event_t* e) {
+    if (name_overlay) return;
+
+    lv_obj_t* scr = lv_scr_act();
+    name_overlay = lv_obj_create(scr);
+    lv_obj_remove_style_all(name_overlay);
+    lv_obj_set_size(name_overlay, 320, 240);
+    lv_obj_set_pos(name_overlay, 0, 0);
+    lv_obj_set_style_bg_color(name_overlay, UI_COLOR_BG, 0);
+    lv_obj_set_style_bg_opa(name_overlay, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(name_overlay, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* title = lv_label_create(name_overlay);
+    lv_label_set_text(title, "Device Name");
+    lv_obj_set_style_text_color(title, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 5);
+
+    lv_obj_t* ta = lv_textarea_create(name_overlay);
+    lv_obj_set_size(ta, 200, 36);
+    lv_obj_align(ta, LV_ALIGN_TOP_MID, 0, 25);
+    lv_textarea_set_one_line(ta, true);
+    lv_textarea_set_max_length(ta, 11);
+    lv_textarea_set_text(ta, discovery_get_name());
+    lv_obj_set_style_bg_color(ta, UI_COLOR_CARD, 0);
+    lv_obj_set_style_text_color(ta, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(ta, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_border_color(ta, UI_COLOR_PRIMARY, 0);
+
+    lv_obj_t* kb = lv_keyboard_create(name_overlay);
+    lv_obj_set_size(kb, 320, 170);
+    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_keyboard_set_textarea(kb, ta);
+    lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_TEXT_LOWER);
+
+    // Save on OK, close on Cancel
+    lv_obj_add_event_cb(kb, name_kb_ready, LV_EVENT_READY, ta);
+    lv_obj_add_event_cb(kb, close_name_editor, LV_EVENT_CANCEL, NULL);
+}
+
+static void name_kb_ready(lv_event_t* e) {
+    lv_obj_t* ta = (lv_obj_t*)lv_event_get_user_data(e);
+    const char* text = lv_textarea_get_text(ta);
+    if (text && text[0] != '\0') {
+        discovery_set_name(text);
+        if (lbl_name_val) {
+            lv_label_set_text(lbl_name_val, text);
+        }
+    }
+    if (name_overlay) {
+        lv_obj_del(name_overlay);
+        name_overlay = nullptr;
+    }
+}
+
+static void close_name_editor(lv_event_t* e) {
+    if (name_overlay) {
+        lv_obj_del(name_overlay);
+        name_overlay = nullptr;
+    }
+}
+
 static lv_obj_t* lbl_wifi_status = nullptr;
 
 static void update_wifi_status() {
@@ -115,6 +183,28 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cont, 4, 0);
     lv_obj_set_scroll_dir(cont, LV_DIR_VER);
+
+    // ── Device name ──
+    lv_obj_t* name_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(name_row);
+    lv_obj_set_size(name_row, 300, 30);
+    lv_obj_clear_flag(name_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* name_label = lv_label_create(name_row);
+    lv_label_set_text(name_label, "Name");
+    lv_obj_set_style_text_color(name_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(name_label, 0, 6);
+
+    lbl_name_val = lv_label_create(name_row);
+    lv_label_set_text(lbl_name_val, discovery_get_name());
+    lv_obj_set_style_text_color(lbl_name_val, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(lbl_name_val, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(lbl_name_val, 55, 6);
+
+    lv_obj_t* btn_edit = ui_create_btn(name_row, LV_SYMBOL_EDIT, 36, 24);
+    lv_obj_set_pos(btn_edit, 180, 2);
+    lv_obj_add_event_cb(btn_edit, open_name_editor, LV_EVENT_CLICKED, NULL);
 
     // ── Brightness slider ──
     lv_obj_t* bl_row = lv_obj_create(cont);
