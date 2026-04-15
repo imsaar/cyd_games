@@ -25,6 +25,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
 | Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
+| Sudoku | 1P | - | 9x9 puzzle, number pad, check cell correctness, new game |
 
 ## Features
 
@@ -33,6 +34,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 - **Dual OTA Partitions** — app0/app1 alternating, with automatic rollback protection
 - **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
+- **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
 - **Persistent Settings** — Brightness, display inversion, and device name saved to NVS across power cycles
 - **Settings Screen** — Device name editor, brightness slider, display inversion toggle, WiFi on/off switch, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
@@ -100,7 +102,7 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
 │   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
-│                           # Whack-a-Mole, Cup Pong
+│                           # Whack-a-Mole, Cup Pong, Sudoku
 ```
 
 ## Multiplayer

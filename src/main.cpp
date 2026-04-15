@@ -16,6 +16,7 @@
 #include "net/wifi_manager.h"
 #include "net/ota.h"
 #include "net/discovery.h"
+#include "net/ntp_time.h"
 #include "ui/screen_manager.h"
 
 void setup() {
@@ -43,6 +44,7 @@ void setup() {
     wifi_init();
     if (wifi_connected()) {
         ota_init();
+        ntp_init();
         led_set(0, 50, 0);  // Green = WiFi connected
     } else {
         led_set(50, 50, 0); // Yellow = ESP-NOW mode
