@@ -26,6 +26,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
 | Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
 | Sudoku | 1P | - | 9x9 puzzle, number pad, check cell correctness, new game |
+| Pictionary | 2P | Yes | Draw & guess, 6 colors, 30s timer, local or network with live drawing sync |
 
 ## Features
 
@@ -102,7 +103,7 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
 │   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
-│                           # Whack-a-Mole, Cup Pong, Sudoku
+│                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary
 ```
 
 ## Multiplayer

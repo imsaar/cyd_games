@@ -21,6 +21,7 @@ static const MenuItem items[] = {
     { LV_SYMBOL_BELL " Whack-a-Mole",   SCREEN_WHACK_MOLE },
     { LV_SYMBOL_DOWNLOAD " Cup Pong",   SCREEN_CUP_PONG },
     { LV_SYMBOL_NEW_LINE " Sudoku",    SCREEN_SUDOKU },
+    { LV_SYMBOL_AUDIO " Pictionary", SCREEN_PICTIONARY },
     { LV_SYMBOL_SETTINGS " Settings",   SCREEN_SETTINGS },
 };
 static const int NUM_ITEMS = sizeof(items) / sizeof(items[0]);
