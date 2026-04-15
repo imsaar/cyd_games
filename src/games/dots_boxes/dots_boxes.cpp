@@ -544,6 +544,10 @@ void DotsBoxes::destroy() {
         lv_msgbox_close(db_invite_msgbox);
         db_invite_msgbox = nullptr;
     }
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"dotsboxes\",\"abandon\":true}");
+    }
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -561,6 +565,11 @@ void DotsBoxes::onNetworkData(const char* json) {
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "dotsboxes") != 0) return;
+    if (doc["abandon"] | false) {
+        game_done_ = true;
+        if (lbl_status_) lv_label_set_text(lbl_status_, "Opponent left");
+        return;
+    }
     int line = doc["line"] | -1;
     Serial.printf("[DB] received line=%d, current=%d\n", line, (int)current_);
     if (line < 0 || line >= TOTAL_LINES) return;

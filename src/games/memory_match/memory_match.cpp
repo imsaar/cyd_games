@@ -398,6 +398,11 @@ void MemoryMatch::onNetworkData(const char* json) {
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "memory") != 0) return;
+    if (doc["abandon"] | false) {
+        game_done_ = true;
+        if (lbl_moves_) lv_label_set_text(lbl_moves_, "Opponent left");
+        return;
+    }
 
     const char* action = doc["action"] | "";
 
@@ -544,6 +549,10 @@ void MemoryMatch::destroy() {
     if (mm_invite_msgbox) {
         lv_msgbox_close(mm_invite_msgbox);
         mm_invite_msgbox = nullptr;
+    }
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"memory\",\"abandon\":true}");
     }
     discovery_clear_game();
     discovery_on_invite(nullptr);

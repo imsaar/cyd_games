@@ -46,6 +46,7 @@ private:
     void reset_board();
     int drop_disc(int col);
     bool check_win(int row, int col);
+    int  win_cells_[4] = {-1,-1,-1,-1};  // board indices of winning 4
     bool board_full();
     void update_status();
     void send_move(int col);

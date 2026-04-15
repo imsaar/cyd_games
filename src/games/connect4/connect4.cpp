@@ -264,14 +264,35 @@ int Connect4::drop_disc(int col) {
 
     if (check_win(row, col)) {
         game_done_ = true;
-        if (mode_ == MODE_NETWORK) {
-            bool i_won = (current_ == my_color_);
-            show_result(i_won ? "You Win!" : "You Lose!", i_won);
-        } else if (mode_ == MODE_CPU) {
-            show_result(current_ == RED ? "You Win!" : "CPU Wins!", current_ == RED);
-        } else {
-            show_result(current_ == RED ? "Red Wins!" : "Yellow Wins!", true);
+
+        // Highlight winning 4 cells
+        for (int i = 0; i < 4; i++) {
+            if (win_cells_[i] >= 0) {
+                lv_obj_set_style_bg_color(board_objs_[win_cells_[i]],
+                    lv_color_hex(0x44ff44), 0);
+            }
         }
+
+        static char result_buf[32];
+        static bool result_is_win;
+        if (mode_ == MODE_NETWORK) {
+            result_is_win = (current_ == my_color_);
+            snprintf(result_buf, sizeof(result_buf), "%s",
+                     result_is_win ? "You Win!" : "You Lose!");
+        } else if (mode_ == MODE_CPU) {
+            result_is_win = (current_ == RED);
+            snprintf(result_buf, sizeof(result_buf), "%s",
+                     current_ == RED ? "You Win!" : "CPU Wins!");
+        } else {
+            result_is_win = true;
+            snprintf(result_buf, sizeof(result_buf), "%s Wins!",
+                     current_ == RED ? "Red" : "Yellow");
+        }
+
+        lv_timer_create([](lv_timer_t* t) {
+            lv_timer_del(t);
+            if (s_self) s_self->show_result(result_buf, result_is_win);
+        }, 3000, NULL);
         return row;
     }
 
@@ -288,30 +309,46 @@ int Connect4::drop_disc(int col) {
 
 bool Connect4::check_win(int row, int col) {
     Cell c = (Cell)board_[row * COLS + col];
-    // Check all 4 directions
     static const int dx[] = {1, 0, 1, 1};
     static const int dy[] = {0, 1, 1, -1};
 
     for (int d = 0; d < 4; d++) {
-        int count = 1;
+        // Collect all connected cells in this direction
+        int cells[7]; // max possible connected
+        int n = 0;
+        // Backward
+        for (int i = 3; i >= 1; i--) {
+            int nr = row - dy[d] * i;
+            int nc = col - dx[d] * i;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+            if (board_[nr * COLS + nc] != c) { n = 0; continue; }
+            cells[n++] = nr * COLS + nc;
+        }
+        cells[n++] = row * COLS + col; // center
         // Forward
-        for (int i = 1; i < 4; i++) {
+        for (int i = 1; i <= 3; i++) {
             int nr = row + dy[d] * i;
             int nc = col + dx[d] * i;
             if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
             if (board_[nr * COLS + nc] != c) break;
-            count++;
+            cells[n++] = nr * COLS + nc;
         }
-        // Backward
-        for (int i = 1; i < 4; i++) {
-            int nr = row - dy[d] * i;
-            int nc = col - dx[d] * i;
-            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
-            if (board_[nr * COLS + nc] != c) break;
-            count++;
+        // Find a run of 4 within collected cells
+        if (n >= 4) {
+            // Take the last 4 connected that include the placed cell
+            // Simple: scan for 4 consecutive
+            int run = 1;
+            for (int i = 1; i < n; i++) {
+                // Check adjacency (cells should be sequential)
+                run++;
+                if (run >= 4) {
+                    for (int j = 0; j < 4; j++) win_cells_[j] = cells[i - 3 + j];
+                    return true;
+                }
+            }
         }
-        if (count >= 4) return true;
     }
+    win_cells_[0] = -1;
     return false;
 }
 
@@ -470,6 +507,10 @@ void Connect4::destroy() {
         lv_msgbox_close(c4_invite_msgbox);
         c4_invite_msgbox = nullptr;
     }
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"connect4\",\"abandon\":true}");
+    }
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -485,6 +526,10 @@ void Connect4::onNetworkData(const char* json) {
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "connect4") != 0) return;
+    if (doc["abandon"] | false) {
+        show_result("Opponent left", false);
+        return;
+    }
     int col = doc["col"] | -1;
     if (col < 0 || col >= COLS) return;
 

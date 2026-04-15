@@ -488,6 +488,10 @@ void Pictionary::destroy() {
         lv_msgbox_close(invite_msgbox);
         invite_msgbox = nullptr;
     }
+    if (network_mode_) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"pictionary\",\"abandon\":true}");
+    }
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -512,6 +516,10 @@ void Pictionary::onNetworkData(const char* json) {
     if (!game || strcmp(game, "pictionary") != 0) return;
     const char* action = doc["a"];
     if (!action) return;
+    if (doc["abandon"] | false) {
+        show_gameover();
+        return;
+    }
 
     if (strcmp(action, "setup") == 0) {
         // Guest receives round setup from host

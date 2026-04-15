@@ -282,6 +282,10 @@ void Pong::onNetworkData(const char* json) {
 
     const char* game = doc["game"];
     if (!game || strcmp(game, "pong") != 0) return;
+    if (doc["abandon"] | false) {
+        show_winner(true);  // treat as win for remaining player
+        return;
+    }
 
     if (!is_host_) {
         // Guest receives ball state + host paddle + scores from host
@@ -502,6 +506,10 @@ void Pong::destroy() {
     if (pong_invite_msgbox) {
         lv_msgbox_close(pong_invite_msgbox);
         pong_invite_msgbox = nullptr;
+    }
+    if (!is_local_) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"pong\",\"abandon\":true}");
     }
     discovery_clear_game();
     discovery_on_invite(nullptr);

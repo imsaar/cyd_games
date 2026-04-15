@@ -42,6 +42,7 @@ private:
     void reset_board();
     void place_mark(int idx);
     Cell check_winner();
+    int  win_line_[3] = {-1,-1,-1};  // indices of winning cells
     bool board_full();
     void update_status();
     void send_move(int idx);

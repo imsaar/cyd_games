@@ -295,16 +295,34 @@ void TicTacToe::place_mark(int idx) {
     Cell winner = check_winner();
     if (winner != EMPTY) {
         game_done_ = true;
-        if (mode_ == MODE_NETWORK) {
-            bool i_won = (winner == my_mark_);
-            show_result(i_won ? "You Win!" : "You Lose!", i_won);
-            lv_label_set_text(lbl_status_, i_won ? "You Win!" : "You Lose!");
-        } else {
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%s Wins!", winner == PLAYER_X ? "X" : "O");
-            show_result(buf, true);
-            lv_label_set_text(lbl_status_, buf);
+
+        // Highlight winning cells for 3 seconds
+        for (int i = 0; i < 3; i++) {
+            if (win_line_[i] >= 0 && win_line_[i] < 9) {
+                lv_obj_set_style_bg_color(cells_[win_line_[i]],
+                    lv_color_hex(0x44ff44), 0);
+            }
         }
+
+        // Prepare result text
+        static char result_buf[32];
+        static bool result_is_win;
+        if (mode_ == MODE_NETWORK) {
+            result_is_win = (winner == my_mark_);
+            snprintf(result_buf, sizeof(result_buf), "%s",
+                     result_is_win ? "You Win!" : "You Lose!");
+        } else {
+            result_is_win = true;
+            snprintf(result_buf, sizeof(result_buf), "%s Wins!",
+                     winner == PLAYER_X ? "X" : "O");
+        }
+        lv_label_set_text(lbl_status_, result_buf);
+
+        // Show overlay after 3 seconds
+        lv_timer_create([](lv_timer_t* t) {
+            lv_timer_del(t);
+            if (s_self) s_self->show_result(result_buf, result_is_win);
+        }, 3000, NULL);
         return;
     }
 
@@ -329,9 +347,11 @@ TicTacToe::Cell TicTacToe::check_winner() {
         if (board_[l[0]] != EMPTY &&
             board_[l[0]] == board_[l[1]] &&
             board_[l[1]] == board_[l[2]]) {
+            win_line_[0] = l[0]; win_line_[1] = l[1]; win_line_[2] = l[2];
             return (Cell)board_[l[0]];
         }
     }
+    win_line_[0] = -1;
     return EMPTY;
 }
 
@@ -405,6 +425,10 @@ void TicTacToe::update() {
 }
 
 void TicTacToe::destroy() {
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"tictactoe\",\"abandon\":true}");
+    }
     if (invite_msgbox) {
         lv_msgbox_close(invite_msgbox);
         invite_msgbox = nullptr;
@@ -437,6 +461,11 @@ void TicTacToe::onNetworkData(const char* json) {
 
     const char* game = doc["game"];
     if (!game || strcmp(game, "tictactoe") != 0) return;
+
+    if (doc["abandon"] | false) {
+        show_result("Opponent left", false);
+        return;
+    }
 
     int cell = doc["cell"] | -1;
     Serial.printf("[TTT] onNetworkData cell=%d, current=%d\n",

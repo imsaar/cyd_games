@@ -424,14 +424,29 @@ void Checkers::check_game_over() {
 
     if (over) {
         game_done_ = true;
+
+        // Highlight the last move
+        if (selected_ >= 0) highlight_cell(selected_, lv_color_hex(0x44ff44));
+
+        static char chk_result_buf[32];
+        static bool chk_result_win;
         if (mode_ == MODE_NETWORK) {
-            bool i_won = (my_color_red_ == red_wins);
-            show_result(i_won ? "You Win!" : "You Lose!", i_won);
+            chk_result_win = (my_color_red_ == red_wins);
+            snprintf(chk_result_buf, sizeof(chk_result_buf), "%s",
+                     chk_result_win ? "You Win!" : "You Lose!");
         } else if (mode_ == MODE_CPU) {
-            show_result(red_wins ? "You Win!" : "CPU Wins!", red_wins);
+            chk_result_win = red_wins;
+            snprintf(chk_result_buf, sizeof(chk_result_buf), "%s",
+                     red_wins ? "You Win!" : "CPU Wins!");
         } else {
-            show_result(red_wins ? "Red Wins!" : "Black Wins!", true);
+            chk_result_win = true;
+            snprintf(chk_result_buf, sizeof(chk_result_buf), "%s Wins!",
+                     red_wins ? "Red" : "Black");
         }
+        lv_timer_create([](lv_timer_t* t) {
+            lv_timer_del(t);
+            if (s_self) s_self->show_result(chk_result_buf, chk_result_win);
+        }, 3000, NULL);
     }
 }
 
@@ -747,6 +762,10 @@ void Checkers::destroy() {
         lv_msgbox_close(ck_invite_msgbox);
         ck_invite_msgbox = nullptr;
     }
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"checkers\",\"abandon\":true}");
+    }
     discovery_clear_game();
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
@@ -762,6 +781,10 @@ void Checkers::onNetworkData(const char* json) {
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "checkers") != 0) return;
+    if (doc["abandon"] | false) {
+        show_result("Opponent left", false);
+        return;
+    }
     int from = doc["from"] | -1;
     int to = doc["to"] | -1;
     if (from < 0 || from >= 64 || to < 0 || to >= 64) return;

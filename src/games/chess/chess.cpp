@@ -510,15 +510,29 @@ void Chess::cell_cb(lv_event_t* e) {
             bool opp_white = s_self->white_turn_;
             if (s_self->is_checkmate(opp_white)) {
                 s_self->game_done_ = true;
+                // Highlight the checkmate move
+                s_self->highlight_cell(from, lv_color_hex(0x44ff44));
+                s_self->highlight_cell(idx, lv_color_hex(0x44ff44));
+
+                static char chess_result_buf[32];
+                static bool chess_result_win;
                 if (s_self->mode_ == MODE_NETWORK) {
-                    s_self->show_result(s_self->my_turn_ ? "Checkmate!\nYou Lose!" : "Checkmate!\nYou Win!",
-                                        !s_self->my_turn_);
+                    chess_result_win = !s_self->my_turn_;
+                    snprintf(chess_result_buf, sizeof(chess_result_buf), "Checkmate!\n%s",
+                             chess_result_win ? "You Win!" : "You Lose!");
                 } else if (s_self->mode_ == MODE_CPU) {
-                    s_self->show_result(opp_white ? "Checkmate!\nCPU Wins!" : "Checkmate!\nYou Win!",
-                                        !opp_white);
+                    chess_result_win = !opp_white;
+                    snprintf(chess_result_buf, sizeof(chess_result_buf), "Checkmate!\n%s",
+                             opp_white ? "CPU Wins!" : "You Win!");
                 } else {
-                    s_self->show_result(opp_white ? "Checkmate!\nBlack Wins!" : "Checkmate!\nWhite Wins!", true);
+                    chess_result_win = true;
+                    snprintf(chess_result_buf, sizeof(chess_result_buf), "Checkmate!\n%s Wins!",
+                             opp_white ? "Black" : "White");
                 }
+                lv_timer_create([](lv_timer_t* t) {
+                    lv_timer_del(t);
+                    if (s_self) s_self->show_result(chess_result_buf, chess_result_win);
+                }, 3000, NULL);
             } else if (s_self->is_stalemate(opp_white)) {
                 s_self->game_done_ = true;
                 s_self->show_result("Stalemate!\nDraw", false);
@@ -596,6 +610,10 @@ void Chess::onNetworkData(const char* json) {
     if (deserializeJson(doc, json)) return;
     const char* g = doc["game"];
     if (!g || strcmp(g, "chess") != 0) return;
+    if (doc["abandon"] | false) {
+        show_result("Opponent left", false);
+        return;
+    }
     int from = doc["from"] | -1, to = doc["to"] | -1;
     if (from < 0 || to < 0) return;
 
@@ -605,7 +623,18 @@ void Chess::onNetworkData(const char* json) {
 
     if (is_checkmate(white_turn_)) {
         game_done_ = true;
-        show_result(my_turn_ ? "Checkmate!\nYou Win!" : "Checkmate!\nYou Lose!", my_turn_);
+        highlight_cell(from, lv_color_hex(0x44ff44));
+        highlight_cell(to, lv_color_hex(0x44ff44));
+
+        static char chess_net_buf[32];
+        static bool chess_net_win;
+        chess_net_win = my_turn_;
+        snprintf(chess_net_buf, sizeof(chess_net_buf), "Checkmate!\n%s",
+                 my_turn_ ? "You Win!" : "You Lose!");
+        lv_timer_create([](lv_timer_t* t) {
+            lv_timer_del(t);
+            if (s_self) s_self->show_result(chess_net_buf, chess_net_win);
+        }, 3000, NULL);
     } else if (is_stalemate(white_turn_)) {
         game_done_ = true;
         show_result("Stalemate!\nDraw", false);
@@ -731,6 +760,10 @@ void Chess::update() {
 
 void Chess::destroy() {
     if (ch_invite_msgbox) { lv_msgbox_close(ch_invite_msgbox); ch_invite_msgbox = nullptr; }
+    if (mode_ == MODE_NETWORK) {
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"chess\",\"abandon\":true}");
+    }
     discovery_clear_game();
     discovery_on_invite(nullptr); discovery_on_accept(nullptr); discovery_on_game_data(nullptr);
     s_self = nullptr; screen_ = nullptr; lbl_status_ = nullptr; lobby_list_ = nullptr;
