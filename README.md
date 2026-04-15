@@ -125,6 +125,10 @@ The transport is selected automatically at boot based on WiFi connectivity, or m
 
 Each game syncs state independently — turn-based games send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.
 
+For technical details, see the design documents:
+- **[ESP-NOW Transport Design](docs/esp-now-transport.md)** — Transport layer, discovery protocol, peer management, packet formats
+- **[Game Network Sync Design](docs/game-network-sync.md)** — Per-game sync patterns, JSON message formats, reliability strategies
+
 ### Device name
 
 Set a custom device name in Settings (persisted across reboots). This name appears in lobby lists and invite dialogs instead of the default MAC-based `CYD-XXYY`.
