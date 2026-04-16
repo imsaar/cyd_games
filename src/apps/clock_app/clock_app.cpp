@@ -270,31 +270,31 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     // HH
     lbl_timer_hh_ = lv_label_create(timer_set_panel_);
-    lv_obj_set_style_text_font(lbl_timer_hh_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_timer_hh_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_hh_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_hh_, cx - 120, y);
+    lv_obj_set_pos(lbl_timer_hh_, cx - 130, y);
 
     lv_obj_t* c1 = lv_label_create(timer_set_panel_);
-    lv_label_set_text(c1, ":"); lv_obj_set_style_text_font(c1, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(c1, UI_COLOR_DIM, 0); lv_obj_set_pos(c1, cx - 60, y);
+    lv_label_set_text(c1, ":"); lv_obj_set_style_text_font(c1, &font_digit_72, 0);
+    lv_obj_set_style_text_color(c1, UI_COLOR_DIM, 0); lv_obj_set_pos(c1, cx - 68, y);
 
     // MM
     lbl_timer_mm_ = lv_label_create(timer_set_panel_);
-    lv_obj_set_style_text_font(lbl_timer_mm_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_timer_mm_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_mm_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_mm_, cx - 38, y);
+    lv_obj_set_pos(lbl_timer_mm_, cx - 46, y);
 
     lv_obj_t* c2 = lv_label_create(timer_set_panel_);
-    lv_label_set_text(c2, ":"); lv_obj_set_style_text_font(c2, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(c2, UI_COLOR_DIM, 0); lv_obj_set_pos(c2, cx + 22, y);
+    lv_label_set_text(c2, ":"); lv_obj_set_style_text_font(c2, &font_digit_72, 0);
+    lv_obj_set_style_text_color(c2, UI_COLOR_DIM, 0); lv_obj_set_pos(c2, cx + 16, y);
 
     // SS
     lbl_timer_ss_ = lv_label_create(timer_set_panel_);
-    lv_obj_set_style_text_font(lbl_timer_ss_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_timer_ss_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_ss_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_ss_, cx + 44, y);
+    lv_obj_set_pos(lbl_timer_ss_, cx + 38, y);
 
-    y += 56;
+    y += 60;
 
     // +/- buttons (larger for touch)
     auto mk_btn = [&](const char* txt, int x, int by) {
@@ -386,8 +386,8 @@ static void build_stopwatch_tab(lv_obj_t* tab) {
     lbl_sw_time_ = lv_label_create(tab);
     lv_obj_set_style_text_font(lbl_sw_time_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_sw_time_, lv_color_hex(0x44aaff), 0);
-    lv_obj_set_style_text_align(lbl_sw_time_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_sw_time_, 310);
+    lv_label_set_long_mode(lbl_sw_time_, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(lbl_sw_time_, 320);
     lv_obj_align(lbl_sw_time_, LV_ALIGN_TOP_MID, 0, 20);
     lv_label_set_text(lbl_sw_time_, "00:00.00");
 
@@ -482,18 +482,18 @@ static void build_alarm_tab(lv_obj_t* tab) {
     int cx = 150, y = 10;
 
     lbl_alarm_hh_ = lv_label_create(tab);
-    lv_obj_set_style_text_font(lbl_alarm_hh_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_alarm_hh_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_alarm_hh_, lv_color_hex(0xe94560), 0);
-    lv_obj_set_pos(lbl_alarm_hh_, cx - 100, y);
+    lv_obj_set_pos(lbl_alarm_hh_, cx - 110, y);
 
     lv_obj_t* colon = lv_label_create(tab);
-    lv_label_set_text(colon, ":"); lv_obj_set_style_text_font(colon, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(colon, UI_COLOR_DIM, 0); lv_obj_set_pos(colon, cx - 36, y);
+    lv_label_set_text(colon, ":"); lv_obj_set_style_text_font(colon, &font_digit_72, 0);
+    lv_obj_set_style_text_color(colon, UI_COLOR_DIM, 0); lv_obj_set_pos(colon, cx - 48, y);
 
     lbl_alarm_mm_ = lv_label_create(tab);
-    lv_obj_set_style_text_font(lbl_alarm_mm_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_alarm_mm_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_alarm_mm_, lv_color_hex(0xe94560), 0);
-    lv_obj_set_pos(lbl_alarm_mm_, cx - 14, y);
+    lv_obj_set_pos(lbl_alarm_mm_, cx - 26, y);
 
     lbl_alarm_ampm_ = lv_label_create(tab);
     lv_obj_set_style_text_font(lbl_alarm_ampm_, &lv_font_montserrat_20, 0);
