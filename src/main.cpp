@@ -20,6 +20,7 @@
 #include "net/ota.h"
 #include "net/discovery.h"
 #include "net/ntp_time.h"
+#include "net/weather.h"
 #include "ui/screen_manager.h"
 
 void setup() {
@@ -54,6 +55,7 @@ void setup() {
         led_set(50, 50, 0); // Yellow = ESP-NOW mode
     }
     discovery_init();  // Works in both UDP and ESP-NOW modes
+    weather_init();
 
     // UI
     screen_manager_init();
@@ -75,6 +77,7 @@ void loop() {
         ota_loop();
     }
     discovery_loop();  // Always run — works in both UDP and ESP-NOW
+    weather_update();
     if (!wifi_disabled()) {
         wifi_loop();
     }

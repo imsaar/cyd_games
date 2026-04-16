@@ -15,7 +15,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Game / App | Players | Network | Description |
 |------------|---------|---------|-------------|
 | Battleship | 1-2P | Yes | 8x8 grid, drag/rotate ships, fire to sink fleet, vs CPU (hunt/target AI)/local/network |
-| Clock | - | - | Clock, Timer, Stopwatch, Alarm — timer/alarm fire globally with modal overlays |
+| Clock | - | - | Clock (with Islamic date), Timer, Stopwatch, Alarm, Seattle Weather (7-day forecast) |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
 | Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
 | Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
