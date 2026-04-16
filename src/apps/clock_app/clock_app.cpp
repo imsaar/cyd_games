@@ -270,59 +270,56 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     int cx = 150, y = 8;
 
-    // HH : MM : SS — 72pt digits, small colons
-    // "00" at 72pt ≈ 56px. Layout across 300px panel:
-    // x: 20  76 88  144 156  212
-    //    HH  :  MM   :  SS
-    int dx = 20;
+    // HH : MM : SS — 72pt digits (each "00" = 96px), small colons
+    // x: 4..100  102..  112..208  210..  220..316
     lbl_timer_hh_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_hh_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_hh_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_hh_, dx, y);
+    lv_obj_set_pos(lbl_timer_hh_, 4, y);
 
     lv_obj_t* c1 = lv_label_create(timer_set_panel_);
     lv_label_set_text(c1, ":");
     lv_obj_set_style_text_font(c1, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(c1, UI_COLOR_DIM, 0);
-    lv_obj_set_pos(c1, dx + 60, y + 10);
+    lv_obj_set_pos(c1, 100, y + 12);
 
     lbl_timer_mm_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_mm_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_mm_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_mm_, dx + 78, y);
+    lv_obj_set_pos(lbl_timer_mm_, 112, y);
 
     lv_obj_t* c2 = lv_label_create(timer_set_panel_);
     lv_label_set_text(c2, ":");
     lv_obj_set_style_text_font(c2, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(c2, UI_COLOR_DIM, 0);
-    lv_obj_set_pos(c2, dx + 138, y + 10);
+    lv_obj_set_pos(c2, 208, y + 12);
 
     lbl_timer_ss_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_ss_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_ss_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_ss_, dx + 156, y);
+    lv_obj_set_pos(lbl_timer_ss_, 220, y);
 
     y += 60;
 
-    // +/- buttons (larger for touch)
+    // +/- buttons aligned under digit pairs (HH@4, MM@112, SS@220)
     auto mk_btn = [&](const char* txt, int x, int by) {
-        lv_obj_t* b = ui_create_btn(timer_set_panel_, txt, 40, 30);
+        lv_obj_t* b = ui_create_btn(timer_set_panel_, txt, 44, 28);
         lv_obj_set_pos(b, x, by);
         return b;
     };
-    lv_obj_t* hh_up = mk_btn("+", cx - 108, y);
+    lv_obj_t* hh_up = mk_btn("+", 4, y);
     lv_obj_add_event_cb(hh_up, [](lv_event_t*) { if (timer_set_hr_ < 23) timer_set_hr_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* hh_dn = mk_btn("-", cx - 64, y);
+    lv_obj_t* hh_dn = mk_btn("-", 52, y);
     lv_obj_add_event_cb(hh_dn, [](lv_event_t*) { if (timer_set_hr_ > 0) timer_set_hr_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* mm_up = mk_btn("+", cx - 18, y);
+    lv_obj_t* mm_up = mk_btn("+", 112, y);
     lv_obj_add_event_cb(mm_up, [](lv_event_t*) { if (timer_set_min_ < 59) timer_set_min_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* mm_dn = mk_btn("-", cx + 26, y);
+    lv_obj_t* mm_dn = mk_btn("-", 160, y);
     lv_obj_add_event_cb(mm_dn, [](lv_event_t*) { if (timer_set_min_ > 0) timer_set_min_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* ss_up = mk_btn("+", cx + 72, y);
+    lv_obj_t* ss_up = mk_btn("+", 220, y);
     lv_obj_add_event_cb(ss_up, [](lv_event_t*) { if (timer_set_sec_ < 59) timer_set_sec_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* ss_dn = mk_btn("-", cx + 116, y);
+    lv_obj_t* ss_dn = mk_btn("-", 268, y);
     lv_obj_add_event_cb(ss_dn, [](lv_event_t*) { if (timer_set_sec_ > 0) timer_set_sec_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
     // Start button — full width at bottom
@@ -489,47 +486,47 @@ static void refresh_alarm_status() {
 static void build_alarm_tab(lv_obj_t* tab) {
     int cx = 150, y = 10;
 
-    // HH : MM  AM/PM — 72pt digits, small colon
-    int dx = 30;
+    // HH : MM  AM/PM — 72pt digits (each "00" = 96px), small colon
+    // x: 10..106  108..  118..214  220..
     lbl_alarm_hh_ = lv_label_create(tab);
     lv_obj_set_style_text_font(lbl_alarm_hh_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_alarm_hh_, lv_color_hex(0xe94560), 0);
-    lv_obj_set_pos(lbl_alarm_hh_, dx, y);
+    lv_obj_set_pos(lbl_alarm_hh_, 10, y);
 
     lv_obj_t* colon = lv_label_create(tab);
     lv_label_set_text(colon, ":");
     lv_obj_set_style_text_font(colon, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(colon, UI_COLOR_DIM, 0);
-    lv_obj_set_pos(colon, dx + 60, y + 10);
+    lv_obj_set_pos(colon, 106, y + 12);
 
     lbl_alarm_mm_ = lv_label_create(tab);
     lv_obj_set_style_text_font(lbl_alarm_mm_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_alarm_mm_, lv_color_hex(0xe94560), 0);
-    lv_obj_set_pos(lbl_alarm_mm_, dx + 78, y);
+    lv_obj_set_pos(lbl_alarm_mm_, 118, y);
 
     lbl_alarm_ampm_ = lv_label_create(tab);
     lv_obj_set_style_text_font(lbl_alarm_ampm_, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(lbl_alarm_ampm_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_pos(lbl_alarm_ampm_, dx + 142, y + 14);
+    lv_obj_set_pos(lbl_alarm_ampm_, 220, y + 14);
 
     y += 62;
 
-    // +/- buttons with better spacing
+    // +/- buttons aligned under digit pairs (HH@10, MM@118)
     auto mk = [&](const char* txt, int x, int by) {
-        lv_obj_t* b = ui_create_btn(tab, txt, 44, 30); lv_obj_set_pos(b, x, by); return b;
+        lv_obj_t* b = ui_create_btn(tab, txt, 44, 28); lv_obj_set_pos(b, x, by); return b;
     };
-    lv_obj_t* hh_up = mk("+", dx, y);
+    lv_obj_t* hh_up = mk("+", 10, y);
     lv_obj_add_event_cb(hh_up, [](lv_event_t*) { alarm_set_hr12_ = (alarm_set_hr12_ % 12) + 1; refresh_alarm_display(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* hh_dn = mk("-", dx + 50, y);
+    lv_obj_t* hh_dn = mk("-", 58, y);
     lv_obj_add_event_cb(hh_dn, [](lv_event_t*) { alarm_set_hr12_ = (alarm_set_hr12_ == 1) ? 12 : alarm_set_hr12_ - 1; refresh_alarm_display(); }, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* mm_up = mk("+", dx + 78, y);
+    lv_obj_t* mm_up = mk("+", 118, y);
     lv_obj_add_event_cb(mm_up, [](lv_event_t*) { uint8_t m = (alert_state_alarm_minute() + 1) % 60; alert_state_set_alarm(alert_state_alarm_hour(), m); refresh_alarm_display(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* mm_dn = mk("-", dx + 128, y);
+    lv_obj_t* mm_dn = mk("-", 166, y);
     lv_obj_add_event_cb(mm_dn, [](lv_event_t*) { uint8_t m = alert_state_alarm_minute() == 0 ? 59 : alert_state_alarm_minute() - 1; alert_state_set_alarm(alert_state_alarm_hour(), m); refresh_alarm_display(); }, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t* ampm_btn = ui_create_btn(tab, "AM/PM", 64, 30);
-    lv_obj_set_pos(ampm_btn, dx + 184, y);
+    lv_obj_t* ampm_btn = ui_create_btn(tab, "AM/PM", 64, 28);
+    lv_obj_set_pos(ampm_btn, 220, y);
     lv_obj_add_event_cb(ampm_btn, [](lv_event_t*) { alarm_set_pm_ = !alarm_set_pm_; refresh_alarm_display(); }, LV_EVENT_CLICKED, NULL);
 
     y += 40;
