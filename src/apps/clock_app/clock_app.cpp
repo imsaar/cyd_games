@@ -264,7 +264,7 @@ static void build_timer_tab(lv_obj_t* tab) {
     // ── Set panel (HH:MM:SS with +/- buttons) ──
     timer_set_panel_ = lv_obj_create(tab);
     lv_obj_remove_style_all(timer_set_panel_);
-    lv_obj_set_size(timer_set_panel_, 300, 160);
+    lv_obj_set_size(timer_set_panel_, 320, 196);
     lv_obj_set_pos(timer_set_panel_, 0, 0);
     lv_obj_clear_flag(timer_set_panel_, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -337,7 +337,7 @@ static void build_timer_tab(lv_obj_t* tab) {
     // ── Run panel (countdown display + cancel) ──
     timer_run_panel_ = lv_obj_create(tab);
     lv_obj_remove_style_all(timer_run_panel_);
-    lv_obj_set_size(timer_run_panel_, 300, 160);
+    lv_obj_set_size(timer_run_panel_, 320, 196);
     lv_obj_set_pos(timer_run_panel_, 0, 0);
     lv_obj_clear_flag(timer_run_panel_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(timer_run_panel_, LV_OBJ_FLAG_HIDDEN);
