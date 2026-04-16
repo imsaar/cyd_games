@@ -624,7 +624,7 @@ static void update_weather_tab() {
         const char* dn = (i == 0) ? "Today" : day_names[(wday + i) % 7];
         const char* sym = weather_symbol(w->forecast[i].code);
         char buf[52];
-        snprintf(buf, sizeof(buf), "%s %-5s %3.0f°/%3.0f°  %s",
+        snprintf(buf, sizeof(buf), "%s %-5s H:%.0f° L:%.0f° %s",
                  sym, dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
                  weather_code_str(w->forecast[i].code));
         lv_label_set_text(lbl_weather_fc_[i], buf);
