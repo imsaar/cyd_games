@@ -1,6 +1,7 @@
 #include "dots_boxes.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static DotsBoxes* s_self = nullptr;
@@ -270,6 +271,7 @@ void DotsBoxes::line_cb(lv_event_t* e) {
 bool DotsBoxes::place_line(int idx) {
     if (lines_[idx]) return false;
     lines_[idx] = true;
+    sound_move();
 
     // Color the line
     lv_color_t color = (current_ == P1) ? UI_COLOR_ACCENT : UI_COLOR_SUCCESS;
@@ -378,6 +380,7 @@ void DotsBoxes::show_result() {
         else if (score_p1_ > score_p2_) { text = "Red Wins!"; is_win = true; }
         else { text = "Blue Wins!"; is_win = true; }
     }
+    if (is_win) sound_win(); else sound_lose();
 
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* overlay = lv_obj_create(screen_);
@@ -574,6 +577,7 @@ void DotsBoxes::onNetworkData(const char* json) {
     Serial.printf("[DB] received line=%d, current=%d\n", line, (int)current_);
     if (line < 0 || line >= TOTAL_LINES) return;
 
+    sound_opponent_move();
     bool completed = place_line(line);
     if (!game_done_) {
         if (!completed) {

@@ -1,6 +1,7 @@
 #include "anagram.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <Arduino.h>
 
 static Anagram* s_self = nullptr;
@@ -154,6 +155,7 @@ void Anagram::skip_word() {
 
 void Anagram::show_result() {
     if (!screen_) return;
+    if (score_ > 0) sound_win(); else sound_lose();
     lv_obj_t* ov = lv_obj_create(screen_);
     lv_obj_remove_style_all(ov);
     lv_obj_set_size(ov, 260, 140);
@@ -191,6 +193,7 @@ void Anagram::letter_cb(lv_event_t* e) {
 
     // Add this letter to answer
     s_self->answer_buf_[s_self->answer_len_++] = s_self->scrambled_[idx];
+    sound_move();
 
     // Dim the used button
     lv_obj_set_style_bg_opa(s_self->letter_btns_[idx], LV_OPA_30, 0);

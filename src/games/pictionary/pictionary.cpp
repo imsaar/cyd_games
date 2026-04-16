@@ -1,6 +1,7 @@
 #include "pictionary.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <string.h>
@@ -310,6 +311,7 @@ void Pictionary::choice_cb(lv_event_t* e) {
     int picked = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
     bool correct = (picked == self->correct_choice_);
     bool early = (self->phase_ == Pictionary::PHASE_WATCH);
+    sound_move();
 
     if (correct) {
         int guesser = self->drawer_ ^ 1;
@@ -587,6 +589,7 @@ void Pictionary::onNetworkData(const char* json) {
     }
     else if (strcmp(action, "guess") == 0) {
         // Drawer receives guess from remote guesser
+        sound_opponent_move();
         bool correct = doc["ok"] | false;
         bool early = doc["early"] | false;
         if (correct) {
@@ -1052,6 +1055,7 @@ void Pictionary::show_wait_guess() {
 }
 
 void Pictionary::show_result(bool correct) {
+    if (correct) sound_move();
     clear_ui();
     phase_ = PHASE_RESULT;
 
@@ -1153,6 +1157,18 @@ void Pictionary::show_result(bool correct) {
 void Pictionary::show_gameover() {
     clear_ui();
     phase_ = PHASE_GAMEOVER;
+
+    // Determine win/lose for sound
+    if (network_mode_) {
+        int my_idx = is_host_ ? 0 : 1;
+        int opp_idx = is_host_ ? 1 : 0;
+        if (score_[my_idx] > score_[opp_idx]) sound_win();
+        else if (score_[my_idx] < score_[opp_idx]) sound_lose();
+        else sound_gameover();
+    } else {
+        // Local mode: just play gameover since both players are present
+        sound_gameover();
+    }
 
     lv_obj_t* title = ui_create_title(screen_, "Game Over!");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);

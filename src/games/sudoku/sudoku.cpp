@@ -1,6 +1,7 @@
 #include "sudoku.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -355,6 +356,7 @@ void Sudoku::place_number(int n) {
 
     board_[sel_r_][sel_c_] = (uint8_t)n;
     checked_[sel_r_][sel_c_] = 0;  // reset check state on new input
+    if (n != 0) sound_move();
     draw_board();
 
     if (n != 0 && check_solved()) {
@@ -371,6 +373,7 @@ bool Sudoku::check_solved() {
 }
 
 void Sudoku::show_win() {
+    sound_win();
     overlay_ = lv_obj_create(screen_);
     lv_obj_set_size(overlay_, 200, 80);
     lv_obj_center(overlay_);

@@ -1,6 +1,7 @@
 #include "cup_pong.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <Arduino.h>
 
 static CupPong* s_self = nullptr;
@@ -186,6 +187,7 @@ void CupPong::check_hit() {
                 cups_[i].alive = false;
                 cups_alive_--;
                 score_ += 10;
+                sound_move();
 
                 // Hide cup
                 lv_obj_add_flag(cups_[i].obj, LV_OBJ_FLAG_HIDDEN);
@@ -248,6 +250,7 @@ void CupPong::draw_ball() {
 
 void CupPong::show_result() {
     state_ = RESULT;
+    sound_gameover();
 
     if (ball_obj_) lv_obj_add_flag(ball_obj_, LV_OBJ_FLAG_HIDDEN);
     if (aim_line_) lv_obj_add_flag(aim_line_, LV_OBJ_FLAG_HIDDEN);

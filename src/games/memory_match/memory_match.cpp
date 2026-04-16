@@ -1,6 +1,7 @@
 #include "memory_match.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 #include <Arduino.h>
 
@@ -216,6 +217,7 @@ void MemoryMatch::card_cb(lv_event_t* e) {
     if (s_self->mode_ == MODE_NETWORK && !s_self->my_turn_) return;
 
     s_self->reveal(idx);
+    sound_move();
 
     // Send flip to peer
     if (s_self->mode_ == MODE_NETWORK) {
@@ -305,6 +307,7 @@ void MemoryMatch::show_result() {
         // Solo always "wins"
         text = buf;
         is_win = true;
+        sound_win();
 
         lv_color_t color = UI_COLOR_SUCCESS;
         lv_obj_t* overlay = lv_obj_create(screen_);
@@ -338,6 +341,7 @@ void MemoryMatch::show_result() {
         else if (score_p2_ > score_p1_) { text = "P2 Wins!"; is_win = true; }
         else { text = "Draw!"; is_win = false; }
     }
+    if (is_win) sound_win(); else sound_lose();
 
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* overlay = lv_obj_create(screen_);
@@ -424,6 +428,7 @@ void MemoryMatch::onNetworkData(const char* json) {
         if (idx < 0 || idx >= NUM_CARDS) return;
         if (matched_[idx] || revealed_[idx]) return;
 
+        sound_opponent_move();
         reveal(idx);
 
         if (first_pick_ == -1) {

@@ -1,6 +1,7 @@
 #include "tictactoe.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static TicTacToe* s_self = nullptr;
@@ -250,6 +251,7 @@ void TicTacToe::cell_cb(lv_event_t* e) {
 
 void TicTacToe::show_result(const char* text, bool is_win) {
     if (!screen_) return;
+    if (is_win) sound_win(); else sound_lose();
 
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
 
@@ -280,6 +282,7 @@ void TicTacToe::show_result(const char* text, bool is_win) {
 
 void TicTacToe::place_mark(int idx) {
     board_[idx] = current_;
+    sound_move();
 
     Serial.printf("[TTT] place_mark idx=%d current=%d board=[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
                   idx, (int)current_,
@@ -472,6 +475,7 @@ void TicTacToe::onNetworkData(const char* json) {
                   cell, (int)current_);
     if (cell < 0 || cell > 8) return;
 
+    sound_opponent_move();
     place_mark(cell);
     if (!game_done_) {
         my_turn_ = true;

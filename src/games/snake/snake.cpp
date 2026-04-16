@@ -1,6 +1,7 @@
 #include "snake.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include "config.h"
 #include <Arduino.h>
 
@@ -72,6 +73,7 @@ void Snake::step() {
         }
         snake_len_++;
         score_ += 10;
+        sound_move();
         if (step_interval_ > 120) step_interval_ -= 8;
         spawn_food();
     }
@@ -112,6 +114,7 @@ void Snake::draw() {
 
 void Snake::show_game_over() {
     if (!screen_) return;
+    sound_gameover();
 
     overlay_ = lv_obj_create(screen_);
     lv_obj_remove_style_all(overlay_);

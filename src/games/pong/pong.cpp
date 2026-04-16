@@ -1,6 +1,7 @@
 #include "pong.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 #include <math.h>
 
@@ -155,6 +156,7 @@ void Pong::step() {
         ball_dx_ = fabsf(ball_dx_) * 1.05f;
         float hit = (ball_y_ + BALL_SIZE / 2 - paddle_l_y_ - PADDLE_H / 2) / (PADDLE_H / 2);
         ball_dy_ = hit * 4.0f;
+        sound_move();
     }
 
     // Right paddle collision
@@ -163,6 +165,7 @@ void Pong::step() {
         ball_dx_ = -fabsf(ball_dx_) * 1.05f;
         float hit = (ball_y_ + BALL_SIZE / 2 - paddle_r_y_ - PADDLE_H / 2) / (PADDLE_H / 2);
         ball_dy_ = hit * 4.0f;
+        sound_move();
     }
 
     // Score
@@ -223,6 +226,8 @@ void Pong::show_winner(bool left_won) {
             is_win = !left_won;
         }
     }
+
+    if (is_win) sound_win(); else sound_lose();
 
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
 

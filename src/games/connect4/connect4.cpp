@@ -1,6 +1,7 @@
 #include "connect4.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static Connect4* s_self = nullptr;
@@ -257,6 +258,7 @@ int Connect4::drop_disc(int col) {
 
     int idx = row * COLS + col;
     board_[idx] = current_;
+    sound_move();
 
     // Update visual
     lv_color_t color = (current_ == RED) ? lv_color_hex(0xff0000) : lv_color_hex(0xffdd00);
@@ -372,6 +374,7 @@ void Connect4::update_status() {
 
 void Connect4::show_result(const char* text, bool is_win) {
     if (!screen_) return;
+    if (is_win) sound_win(); else sound_lose();
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* overlay = lv_obj_create(screen_);
     lv_obj_remove_style_all(overlay);
@@ -533,6 +536,7 @@ void Connect4::onNetworkData(const char* json) {
     int col = doc["col"] | -1;
     if (col < 0 || col >= COLS) return;
 
+    sound_opponent_move();
     drop_disc(col);
     if (!game_done_) {
         my_turn_ = true;

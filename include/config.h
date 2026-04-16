@@ -24,7 +24,7 @@
 #define LED_B_PIN       17
 
 // ── Audio ──
-#define SPEAKER_PIN     26
+#define SPEAKER_PIN     22
 
 // ── Light sensor ──
 #define LDR_PIN         34

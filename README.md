@@ -8,7 +8,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 - **Board:** ESP32-2432S028 (CYD) — ESP32-WROOM-32, 4MB flash
 - **Display:** 2.8" ILI9341 TFT, 320x240, resistive touchscreen (XPT2046)
-- **Extras:** RGB LED, speaker (GPIO 26), light sensor, SD card slot
+- **Extras:** RGB LED, passive piezo buzzer (GPIO 22), light sensor, SD card slot
 
 ## Games
 
@@ -36,6 +36,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 - **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
 - **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
+- **Sound Effects** — Piezo buzzer feedback for moves, opponent moves, wins, losses, and startup
 - **Persistent Settings** — Brightness, display inversion, and device name saved to NVS across power cycles
 - **Settings Screen** — Device name editor, brightness slider, display inversion toggle, WiFi on/off switch, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
@@ -98,7 +99,7 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   └── secrets.h           # WiFi credentials (gitignored)
 ├── src/
 │   ├── main.cpp            # Setup/loop orchestration
-│   ├── hal/                # Display, backlight, LED, audio, preferences
+│   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
 │   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
 │   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,

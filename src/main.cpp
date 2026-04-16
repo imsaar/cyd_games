@@ -13,6 +13,7 @@
 #include "hal/prefs.h"
 #include "hal/led.h"
 #include "hal/audio.h"
+#include "hal/sound.h"
 #include "net/wifi_manager.h"
 #include "net/ota.h"
 #include "net/discovery.h"
@@ -55,6 +56,8 @@ void setup() {
     screen_manager_init();
     screen_manager_switch(SCREEN_MENU);
 
+    sound_startup();
+
     delay(500);
     led_off();
 
@@ -73,5 +76,6 @@ void loop() {
         wifi_loop();
     }
 
+    sound_update();
     delay(5);
 }

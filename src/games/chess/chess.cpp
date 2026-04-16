@@ -1,6 +1,7 @@
 #include "chess.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static Chess* s_self = nullptr;
@@ -449,6 +450,7 @@ void Chess::do_move(int from, int to) {
     }
 
     white_turn_ = !white_turn_;
+    sound_move();
 }
 
 // ── Input ──
@@ -572,6 +574,7 @@ void Chess::update_status() {
 
 void Chess::show_result(const char* text, bool is_win) {
     if (!screen_) return;
+    if (is_win) sound_win(); else sound_lose();
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* ov = lv_obj_create(screen_);
     lv_obj_remove_style_all(ov);
@@ -617,6 +620,7 @@ void Chess::onNetworkData(const char* json) {
     int from = doc["from"] | -1, to = doc["to"] | -1;
     if (from < 0 || to < 0) return;
 
+    sound_opponent_move();
     do_move(from, to);
     clear_highlights();
     draw_board();

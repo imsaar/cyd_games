@@ -1,6 +1,7 @@
 #include "checkers.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static Checkers* s_self = nullptr;
@@ -339,6 +340,7 @@ bool Checkers::try_move(int from, int to) {
         board_[to] = board_[from];
         board_[from] = EMPTY_CELL;
         promote_if_needed(to);
+        sound_move();
         return true;
     }
 
@@ -354,6 +356,7 @@ bool Checkers::try_move(int from, int to) {
         board_[from] = EMPTY_CELL;
         board_[mid] = EMPTY_CELL;
         promote_if_needed(to);
+        sound_move();
 
         // Check for multi-jump
         if (can_jump(to)) {
@@ -549,6 +552,7 @@ void Checkers::update_status() {
 
 void Checkers::show_result(const char* text, bool is_win) {
     if (!screen_) return;
+    if (is_win) sound_win(); else sound_lose();
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* overlay = lv_obj_create(screen_);
     lv_obj_remove_style_all(overlay);
@@ -789,6 +793,7 @@ void Checkers::onNetworkData(const char* json) {
     int to = doc["to"] | -1;
     if (from < 0 || from >= 64 || to < 0 || to >= 64) return;
 
+    sound_opponent_move();
     try_move(from, to);
     clear_highlights();
     draw_board();

@@ -1,6 +1,7 @@
 #include "whack_mole.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../hal/sound.h"
 #include <Arduino.h>
 
 static WhackMole* s_self = nullptr;
@@ -28,6 +29,7 @@ void WhackMole::whack(int idx) {
         if (reaction < 300) pts = 25;
         else if (reaction < 600) pts = 15;
         score_ += pts;
+        sound_move();
         show_whack_effect(idx, true);
     }
 
@@ -114,6 +116,7 @@ void WhackMole::update_display() {
 void WhackMole::show_result() {
     if (!screen_) return;
     game_done_ = true;
+    sound_gameover();
 
     for (int i = 0; i < HOLES; i++) hide_mole(i);
 
