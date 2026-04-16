@@ -10,7 +10,7 @@ struct MenuItem {
 
 static const MenuItem items[] = {
     { LV_SYMBOL_PLAY " Battleship",     SCREEN_BATTLESHIP },
-    { LV_SYMBOL_SHUFFLE " Tic-Tac-Toe", SCREEN_TICTACTOE },
+    { LV_SYMBOL_BELL " Clock",          SCREEN_CLOCK },
     { LV_SYMBOL_REFRESH " Pong",        SCREEN_PONG },
     { LV_SYMBOL_CHARGE " Connect 4",    SCREEN_CONNECT4 },
     { LV_SYMBOL_IMAGE " Memory",        SCREEN_MEMORY },

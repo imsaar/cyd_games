@@ -40,14 +40,26 @@ static const Note melody_gameover[] = {
     {440, 120}, {349, 120}, {262, 250}
 };
 
-static void play(const Note* notes, int len) {
+static const Note melody_timer_done[] = {
+    {880, 100}, {1047, 100}, {1319, 100}, {1568, 300}
+};
+
+static const Note melody_alarm[] = {
+    {880, 150}, {0, 100}, {880, 150}, {0, 100},
+    {1047, 150}, {0, 100}, {1047, 150}, {0, 400}
+};
+
+static bool repeating_ = false;
+
+static void play(const Note* notes, int len, bool repeat = false) {
     // If a move beep interrupts a longer melody, ignore it
-    if (playing_ && len == 1 && melody_len_ > 1) return;
+    if (playing_ && len == 1 && melody_len_ > 1 && !repeat) return;
 
     melody_ = notes;
     melody_len_ = len;
     melody_idx_ = 0;
     playing_ = true;
+    repeating_ = repeat;
     ledcWriteTone(6, notes[0].freq);
     note_start_ = millis();
 }
@@ -66,9 +78,13 @@ void sound_update() {
 
     melody_idx_++;
     if (melody_idx_ >= melody_len_) {
-        ledcWriteTone(6, 0);
-        playing_ = false;
-        return;
+        if (repeating_) {
+            melody_idx_ = 0;  // loop
+        } else {
+            ledcWriteTone(6, 0);
+            playing_ = false;
+            return;
+        }
     }
 
     ledcWriteTone(6, melody_[melody_idx_].freq);
@@ -80,4 +96,7 @@ void sound_move()         { play(melody_move,     sizeof(melody_move)     / size
 void sound_opponent_move(){ play(melody_opponent,  sizeof(melody_opponent) / sizeof(Note)); }
 void sound_win()          { play(melody_win,       sizeof(melody_win)      / sizeof(Note)); }
 void sound_lose()    { play(melody_lose,    sizeof(melody_lose)    / sizeof(Note)); }
-void sound_gameover(){ play(melody_gameover,sizeof(melody_gameover)/ sizeof(Note)); }
+void sound_gameover()    { play(melody_gameover,   sizeof(melody_gameover)   / sizeof(Note)); }
+void sound_timer_done()  { play(melody_timer_done, sizeof(melody_timer_done) / sizeof(Note)); }
+void sound_alarm_start() { play(melody_alarm,      sizeof(melody_alarm)      / sizeof(Note), true); }
+void sound_alarm_stop()  { ledcWriteTone(6, 0); playing_ = false; repeating_ = false; }

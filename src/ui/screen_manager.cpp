@@ -2,7 +2,7 @@
 #include "screen_menu.h"
 #include "screen_settings.h"
 #include "../games/battleship/battleship.h"
-#include "../games/tictactoe/tictactoe.h"
+#include "../apps/clock_app/clock_app.h"
 #include "../games/memory_match/memory_match.h"
 #include "../games/pong/pong.h"
 #include "../games/connect4/connect4.h"
@@ -20,7 +20,7 @@ static ScreenID  current_screen = SCREEN_MENU;
 
 // Static game instances (avoid heap fragmentation)
 static Battleship  battleship_game;
-static TicTacToe   ttt_game;
+// Clock app uses free functions, not a class instance
 static MemoryMatch memory_game;
 static Pong        pong_game;
 static Connect4    connect4_game;
@@ -47,12 +47,8 @@ void screen_manager_init() {
         []() { battleship_game.destroy(); },
         true, battleship_game.maxPlayers()
     };
-    screens[SCREEN_TICTACTOE] = {
-        ttt_game.name(),
-        []() -> lv_obj_t* { return ttt_game.createScreen(); },
-        []() { ttt_game.update(); },
-        []() { ttt_game.destroy(); },
-        true, ttt_game.maxPlayers()
+    screens[SCREEN_CLOCK] = {
+        "Clock", clock_app_create, clock_app_update, clock_app_destroy, false, 0
     };
     screens[SCREEN_MEMORY] = {
         memory_game.name(),

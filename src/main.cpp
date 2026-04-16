@@ -14,6 +14,8 @@
 #include "hal/led.h"
 #include "hal/audio.h"
 #include "hal/sound.h"
+#include "utils/alert_state.h"
+#include "utils/alert_overlay.h"
 #include "net/wifi_manager.h"
 #include "net/ota.h"
 #include "net/discovery.h"
@@ -33,6 +35,7 @@ void setup() {
     prefs_init();
     led_init();
     audio_init();
+    alert_state_init();
 
     // Restore saved display preferences
     backlight_set(prefs_get_brightness());
@@ -77,5 +80,13 @@ void loop() {
     }
 
     sound_update();
+
+    // Global alert checks (timer/alarm fire even when in other apps)
+    alert_state_check();
+    if (!alert_overlay_active()) {
+        if (alert_state_timer_just_fired()) alert_overlay_show_timer();
+        if (alert_state_alarm_just_fired()) alert_overlay_show_alarm();
+    }
+
     delay(5);
 }

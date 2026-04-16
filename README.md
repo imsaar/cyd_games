@@ -12,10 +12,10 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 ## Games
 
-| Game | Players | Network | Description |
-|------|---------|---------|-------------|
+| Game / App | Players | Network | Description |
+|------------|---------|---------|-------------|
 | Battleship | 1-2P | Yes | 8x8 grid, drag/rotate ships, fire to sink fleet, vs CPU (hunt/target AI)/local/network |
-| Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
+| Clock | - | - | Clock, Timer, Stopwatch, Alarm — timer/alarm fire globally with modal overlays |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
 | Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
 | Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
@@ -102,7 +102,9 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
 │   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
-│   └── games/              # Battleship, Tic-Tac-Toe, Memory, Pong, Connect 4,
+│   ├── apps/               # Clock (Timer, Stopwatch, Alarm)
+│   ├── utils/              # Global alert state and overlay system
+│   └── games/              # Battleship, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
 │                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary
 ```
