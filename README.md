@@ -25,7 +25,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
 | Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
-| Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates full board with error highlights |
+| Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates with error highlights, elapsed timer |
 | Pictionary | 2P | Yes | Draw & guess, 6 colors, 30s timer, local or network with live drawing sync |
 
 ## Features

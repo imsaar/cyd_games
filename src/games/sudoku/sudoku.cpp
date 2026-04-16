@@ -2,6 +2,7 @@
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
 #include "../../hal/sound.h"
+#include "../../net/ntp_time.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -200,6 +201,8 @@ static void back_cb(lv_event_t*) { screen_manager_back_to_menu(); }
 
 lv_obj_t* Sudoku::createScreen() {
     screen_ = ui_create_screen();
+    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
 
     generate();
 
@@ -284,26 +287,60 @@ lv_obj_t* Sudoku::createScreen() {
     }
     y += 27;
 
-    // Status label
-    lbl_status_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(lbl_status_, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(lbl_status_, &lv_font_montserrat_12, 0);
-    lv_obj_set_width(lbl_status_, pad_w);
-    lv_obj_set_pos(lbl_status_, pad_x, y);
-    lv_label_set_text(lbl_status_, "");
+    // Bottom bar: clock (left) and elapsed timer (right)
+    lbl_clock_ = lv_label_create(screen_);
+    lv_obj_set_style_text_color(lbl_clock_, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(lbl_clock_, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(lbl_clock_, GRID_X, 226);
+    lv_label_set_text(lbl_clock_, "");
+
+    lbl_timer_ = lv_label_create(screen_);
+    lv_obj_set_style_text_color(lbl_timer_, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(lbl_timer_, &lv_font_montserrat_12, 0);
+    lv_obj_align(lbl_timer_, LV_ALIGN_BOTTOM_RIGHT, -4, -2);
+    lv_label_set_text(lbl_timer_, "0:00");
+
+    start_time_ = millis();
 
     draw_board();
     return screen_;
 }
 
-void Sudoku::update() {}
+void Sudoku::update() {
+    // Update clock
+    if (lbl_clock_) {
+        static uint32_t last_clock = 0;
+        if (millis() - last_clock > 30000) {
+            last_clock = millis();
+            if (ntp_valid())
+                lv_label_set_text(lbl_clock_, ntp_get_display_str());
+        }
+        // First update
+        if (lv_label_get_text(lbl_clock_)[0] == '\0' && ntp_valid())
+            lv_label_set_text(lbl_clock_, ntp_get_display_str());
+    }
+    // Update elapsed timer
+    if (lbl_timer_ && !solved_) {
+        static uint32_t last_timer = 0;
+        if (millis() - last_timer > 1000) {
+            last_timer = millis();
+            uint32_t elapsed = (millis() - start_time_) / 1000;
+            int mins = elapsed / 60;
+            int secs = elapsed % 60;
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d:%02d", mins, secs);
+            lv_label_set_text(lbl_timer_, buf);
+        }
+    }
+}
 
 void Sudoku::destroy() {
     screen_ = nullptr;
     grid_area_ = nullptr;
     overlay_ = nullptr;
     numpad_ = nullptr;
-    lbl_status_ = nullptr;
+    lbl_clock_ = nullptr;
+    lbl_timer_ = nullptr;
     memset(cell_lbls_, 0, sizeof(cell_lbls_));
 }
 
@@ -367,11 +404,6 @@ void Sudoku::select_cell(int r, int c) {
     if (solved_) return;
     sel_r_ = r;
     sel_c_ = c;
-    if (given_[r][c]) {
-        lv_label_set_text(lbl_status_, "Fixed cell");
-    } else {
-        lv_label_set_text(lbl_status_, "");
-    }
     draw_board();
 }
 
@@ -381,7 +413,6 @@ void Sudoku::place_number(int n) {
 
     board_[sel_r_][sel_c_] = (uint8_t)n;
     checked_[sel_r_][sel_c_] = 0;  // reset check state on new input
-    if (n != 0) sound_move();
     draw_board();
 }
 
@@ -408,22 +439,52 @@ void Sudoku::check_solution() {
         solved_ = true;
         show_win();
     } else {
-        char buf[32];
-        if (wrong > 0 && empty > 0)
-            snprintf(buf, sizeof(buf), "%d wrong, %d empty", wrong, empty);
-        else if (wrong > 0)
-            snprintf(buf, sizeof(buf), "%d wrong", wrong);
-        else
-            snprintf(buf, sizeof(buf), "%d empty", empty);
-        if (lbl_status_) lv_label_set_text(lbl_status_, buf);
         sound_lose();
+        uint32_t elapsed = (millis() - start_time_) / 1000;
+        int mins = elapsed / 60, secs = elapsed % 60;
+        char buf[64];
+        if (wrong > 0 && empty > 0)
+            snprintf(buf, sizeof(buf), "%d wrong, %d missed\nTime: %d:%02d", wrong, empty, mins, secs);
+        else if (wrong > 0)
+            snprintf(buf, sizeof(buf), "%d wrong\nTime: %d:%02d", wrong, mins, secs);
+        else
+            snprintf(buf, sizeof(buf), "%d missed\nTime: %d:%02d", empty, mins, secs);
+
+        // Show modal overlay
+        if (overlay_) { lv_obj_del(overlay_); overlay_ = nullptr; }
+        overlay_ = lv_obj_create(screen_);
+        lv_obj_set_size(overlay_, 200, 120);
+        lv_obj_center(overlay_);
+        lv_obj_set_style_bg_color(overlay_, lv_color_hex(0x0e0e1a), 0);
+        lv_obj_set_style_bg_opa(overlay_, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(overlay_, 12, 0);
+        lv_obj_set_style_border_color(overlay_, UI_COLOR_ACCENT, 0);
+        lv_obj_set_style_border_width(overlay_, 2, 0);
+        lv_obj_clear_flag(overlay_, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t* lbl = lv_label_create(overlay_);
+        lv_label_set_text(lbl, buf);
+        lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, 0);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 12);
+
+        lv_obj_t* btn = ui_create_btn(overlay_, "OK", 80, 28);
+        lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -8);
+        lv_obj_add_event_cb(btn, [](lv_event_t* e) {
+            Sudoku* self = (Sudoku*)lv_event_get_user_data(e);
+            if (self->overlay_) { lv_obj_del(self->overlay_); self->overlay_ = nullptr; }
+        }, LV_EVENT_CLICKED, this);
     }
 }
 
 void Sudoku::show_win() {
     sound_win();
+    uint32_t elapsed = (millis() - start_time_) / 1000;
+    int mins = elapsed / 60, secs = elapsed % 60;
+
     overlay_ = lv_obj_create(screen_);
-    lv_obj_set_size(overlay_, 220, 100);
+    lv_obj_set_size(overlay_, 220, 120);
     lv_obj_center(overlay_);
     lv_obj_set_style_bg_color(overlay_, lv_color_hex(0x0e0e1a), 0);
     lv_obj_set_style_bg_opa(overlay_, LV_OPA_COVER, 0);
@@ -436,7 +497,15 @@ void Sudoku::show_win() {
     lv_label_set_text(lbl, "You did it!");
     lv_obj_set_style_text_color(lbl, UI_COLOR_SUCCESS, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 14);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 8);
+
+    lv_obj_t* time_lbl = lv_label_create(overlay_);
+    char tbuf[16];
+    snprintf(tbuf, sizeof(tbuf), "Time: %d:%02d", mins, secs);
+    lv_label_set_text(time_lbl, tbuf);
+    lv_obj_set_style_text_color(time_lbl, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(time_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_align(time_lbl, LV_ALIGN_TOP_MID, 0, 34);
 
     lv_obj_t* btn = ui_create_btn(overlay_, "New Game", 110, 32);
     lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -10);

@@ -17,7 +17,6 @@ private:
     lv_obj_t* grid_area_ = nullptr;      // single clickable grid background
     lv_obj_t* cell_lbls_[SZ][SZ] = {};   // 81 lightweight labels (no containers)
     lv_obj_t* numpad_ = nullptr;          // single btnmatrix for 1-9 + Clear
-    lv_obj_t* lbl_status_ = nullptr;
     lv_obj_t* overlay_ = nullptr;
 
     uint8_t solution_[SZ][SZ] = {};
@@ -29,6 +28,9 @@ private:
     int sel_r_ = -1;
     int sel_c_ = -1;
     bool solved_ = false;
+    uint32_t start_time_ = 0;
+    lv_obj_t* lbl_clock_ = nullptr;
+    lv_obj_t* lbl_timer_ = nullptr;
 
     void generate();
     void remove_cells(int count);
