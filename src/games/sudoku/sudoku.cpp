@@ -166,11 +166,25 @@ void Sudoku::numpad_cb(lv_event_t* e) {
 void Sudoku::check_cb(lv_event_t* e) {
     Sudoku* self = (Sudoku*)lv_event_get_user_data(e);
     int r = self->sel_r_, c = self->sel_c_;
-    if (r < 0 || c < 0 || self->given_[r][c] || self->solved_) return;
-    uint8_t v = self->board_[r][c];
-    if (v == 0) return;
-    self->checked_[r][c] = (v == self->solution_[r][c]) ? 1 : -1;
+    if (r < 0 || c < 0 || self->solved_) return;
+    // Check the entire 3x3 box containing the selected cell
+    int br = (r / 3) * 3, bc = (c / 3) * 3;
+    for (int dr = 0; dr < 3; dr++) {
+        for (int dc = 0; dc < 3; dc++) {
+            int cr = br + dr, cc = bc + dc;
+            if (self->given_[cr][cc]) continue;
+            uint8_t v = self->board_[cr][cc];
+            if (v == 0) continue;
+            self->checked_[cr][cc] = (v == self->solution_[cr][cc]) ? 1 : -1;
+        }
+    }
     self->draw_board();
+}
+
+void Sudoku::done_cb(lv_event_t* e) {
+    Sudoku* self = (Sudoku*)lv_event_get_user_data(e);
+    if (self->solved_) return;
+    self->check_solution();
 }
 
 void Sudoku::new_game_cb(lv_event_t* e) {
@@ -255,27 +269,28 @@ lv_obj_t* Sudoku::createScreen() {
     lv_obj_add_event_cb(numpad_, numpad_cb, LV_EVENT_VALUE_CHANGED, this);
     y += 134;
 
-    // Check button
+    // Check cell button
     {
-        lv_obj_t* btn = ui_create_btn(screen_, "Check", pad_w, 26);
+        lv_obj_t* btn = ui_create_btn(screen_, "Check Box", pad_w, 24);
         lv_obj_set_pos(btn, pad_x, y);
         lv_obj_add_event_cb(btn, check_cb, LV_EVENT_CLICKED, this);
     }
-    y += 30;
+    y += 27;
+    // Done / validate button
+    {
+        lv_obj_t* btn = ui_create_btn(screen_, "Done", pad_w, 24);
+        lv_obj_set_pos(btn, pad_x, y);
+        lv_obj_add_event_cb(btn, done_cb, LV_EVENT_CLICKED, this);
+    }
+    y += 27;
 
     // Status label
     lbl_status_ = lv_label_create(screen_);
     lv_obj_set_style_text_color(lbl_status_, UI_COLOR_DIM, 0);
     lv_obj_set_style_text_font(lbl_status_, &lv_font_montserrat_12, 0);
+    lv_obj_set_width(lbl_status_, pad_w);
     lv_obj_set_pos(lbl_status_, pad_x, y);
     lv_label_set_text(lbl_status_, "");
-
-    // New Game button (bottom)
-    {
-        lv_obj_t* btn = ui_create_btn(screen_, "New", pad_w, 26);
-        lv_obj_set_pos(btn, pad_x, 240 - 32);
-        lv_obj_add_event_cb(btn, new_game_cb, LV_EVENT_CLICKED, this);
-    }
 
     draw_board();
     return screen_;
@@ -305,24 +320,34 @@ void Sudoku::draw_board() {
                 lv_label_set_text(lbl, txt);
             }
 
-            // Text color: given=white, unchecked player=cyan, checked correct=blue, checked wrong=red
+            // Text color: given=white, unchecked=cyan, correct=green, wrong=red, missed=yellow
             if (given_[r][c]) {
                 lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, 0);
             } else if (checked_[r][c] == 1) {
-                lv_obj_set_style_text_color(lbl, UI_COLOR_SUCCESS, 0);   // blue/green = correct
+                lv_obj_set_style_text_color(lbl, UI_COLOR_SUCCESS, 0);
             } else if (checked_[r][c] == -1) {
                 lv_obj_set_style_text_color(lbl, UI_COLOR_ACCENT, 0);    // red = wrong
+            } else if (checked_[r][c] == -2) {
+                lv_obj_set_style_text_color(lbl, UI_COLOR_WARNING, 0);   // yellow = empty/missed
             } else {
                 lv_obj_set_style_text_color(lbl, lv_color_hex(0x88bbdd), 0);  // neutral cyan
             }
 
-            // Cell background via label bg — selection highlight
+            // Cell background via label bg
             bool sel = (r == sel_r_ && c == sel_c_);
             bool related = sel_r_ >= 0 && (r == sel_r_ || c == sel_c_ ||
                           (r/3 == sel_r_/3 && c/3 == sel_c_/3));
             bool dark_box = ((r/3 + c/3) % 2 == 0);
 
-            if (sel) {
+            if (!given_[r][c] && checked_[r][c] == -1) {
+                // Wrong cell: red tint background
+                lv_obj_set_style_bg_color(lbl, lv_color_hex(0x4a1020), 0);
+                lv_obj_set_style_bg_opa(lbl, LV_OPA_COVER, 0);
+            } else if (!given_[r][c] && checked_[r][c] == -2) {
+                // Missed cell: yellow tint background
+                lv_obj_set_style_bg_color(lbl, lv_color_hex(0x3a3510), 0);
+                lv_obj_set_style_bg_opa(lbl, LV_OPA_COVER, 0);
+            } else if (sel) {
                 lv_obj_set_style_bg_color(lbl, lv_color_hex(0x2a4070), 0);
                 lv_obj_set_style_bg_opa(lbl, LV_OPA_COVER, 0);
             } else if (related) {
@@ -358,38 +383,61 @@ void Sudoku::place_number(int n) {
     checked_[sel_r_][sel_c_] = 0;  // reset check state on new input
     if (n != 0) sound_move();
     draw_board();
-
-    if (n != 0 && check_solved()) {
-        solved_ = true;
-        show_win();
-    }
 }
 
-bool Sudoku::check_solved() {
-    for (int r = 0; r < 9; r++)
-        for (int c = 0; c < 9; c++)
-            if (board_[r][c] != solution_[r][c]) return false;
-    return true;
+void Sudoku::check_solution() {
+    int wrong = 0, empty = 0;
+    for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+            if (given_[r][c]) continue;
+            if (board_[r][c] == 0) {
+                checked_[r][c] = -2;  // empty/missed
+                empty++;
+            } else if (board_[r][c] != solution_[r][c]) {
+                checked_[r][c] = -1;  // wrong
+                wrong++;
+            } else {
+                checked_[r][c] = 1;   // correct
+            }
+        }
+    }
+    draw_board();
+
+    if (wrong == 0 && empty == 0) {
+        solved_ = true;
+        show_win();
+    } else {
+        char buf[32];
+        if (wrong > 0 && empty > 0)
+            snprintf(buf, sizeof(buf), "%d wrong, %d empty", wrong, empty);
+        else if (wrong > 0)
+            snprintf(buf, sizeof(buf), "%d wrong", wrong);
+        else
+            snprintf(buf, sizeof(buf), "%d empty", empty);
+        if (lbl_status_) lv_label_set_text(lbl_status_, buf);
+        sound_lose();
+    }
 }
 
 void Sudoku::show_win() {
     sound_win();
     overlay_ = lv_obj_create(screen_);
-    lv_obj_set_size(overlay_, 200, 80);
+    lv_obj_set_size(overlay_, 220, 100);
     lv_obj_center(overlay_);
-    lv_obj_set_style_bg_color(overlay_, UI_COLOR_CARD, 0);
-    lv_obj_set_style_bg_opa(overlay_, LV_OPA_90, 0);
-    lv_obj_set_style_radius(overlay_, 12, 0);
+    lv_obj_set_style_bg_color(overlay_, lv_color_hex(0x0e0e1a), 0);
+    lv_obj_set_style_bg_opa(overlay_, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(overlay_, 16, 0);
     lv_obj_set_style_border_color(overlay_, UI_COLOR_SUCCESS, 0);
-    lv_obj_set_style_border_width(overlay_, 2, 0);
+    lv_obj_set_style_border_width(overlay_, 3, 0);
+    lv_obj_clear_flag(overlay_, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t* lbl = lv_label_create(overlay_);
-    lv_label_set_text(lbl, "Puzzle Solved!");
+    lv_label_set_text(lbl, "You did it!");
     lv_obj_set_style_text_color(lbl, UI_COLOR_SUCCESS, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 10);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 14);
 
-    lv_obj_t* btn = ui_create_btn(overlay_, "New Game", 120, 30);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_t* btn = ui_create_btn(overlay_, "New Game", 110, 32);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -10);
     lv_obj_add_event_cb(btn, new_game_cb, LV_EVENT_CLICKED, this);
 }

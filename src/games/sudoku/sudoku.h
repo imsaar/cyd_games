@@ -35,12 +35,13 @@ private:
     void draw_board();
     void select_cell(int r, int c);
     void place_number(int n);
-    bool check_solved();
+    void check_solution();
     void show_win();
 
     static void grid_cb(lv_event_t* e);
     static void numpad_cb(lv_event_t* e);
     static void check_cb(lv_event_t* e);
+    static void done_cb(lv_event_t* e);
     static void new_game_cb(lv_event_t* e);
     static void grid_draw_cb(lv_event_t* e);
 };
