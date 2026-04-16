@@ -358,11 +358,11 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     // Massive countdown — 96pt custom font
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
-    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_72, 0);
+    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_96, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
     lv_label_set_long_mode(lbl_timer_countdown_, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(lbl_timer_countdown_, 320);
-    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_TOP_MID, 0, 16);
+    lv_obj_set_pos(lbl_timer_countdown_, 30, 50);
     lv_label_set_text(lbl_timer_countdown_, "00:00");
 
     lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 280, 40);
