@@ -5,6 +5,7 @@
 #include "../../net/ntp_time.h"
 #include "../../net/weather.h"
 #include "../../ui/weather_icons.h"
+#include "../../ui/fonts.h"
 #include <Arduino.h>
 #include <time.h>
 #include <math.h>
@@ -121,64 +122,66 @@ static void build_clock_tab(lv_obj_t* tab) {
     // │  [sun icon] 62°F Cloudy   Seattle    │  <- weather bar at bottom
     // └──────────────────────────────────────┘
 
-    // ── Row 1: Time (dominates the screen) ──
-    lbl_clock_time_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_style_text_font(lbl_clock_time_, &lv_font_montserrat_48, 0);
-    lv_obj_set_pos(lbl_clock_time_, 10, 4);
-    lv_label_set_text(lbl_clock_time_, "--:--");
-
-    // Seconds (smaller, right of time)
-    lbl_sec_g_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_sec_g_, lv_color_hex(0x336655), 0);
-    lv_obj_set_style_text_font(lbl_sec_g_, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_sec_g_, 200, 14);
-    lv_label_set_text(lbl_sec_g_, "");
-
-    // AM/PM (right of seconds)
-    lbl_ampm_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_ampm_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_ampm_, 260, 14);
-    lv_label_set_text(lbl_ampm_, "");
-
-    // Seconds arc — thin bar under time spanning full width
+    // ── Left: Seconds arc circle with time inside ──
+    // Arc: 150x150 centered vertically on left
     arc_sec_ = lv_arc_create(tab);
-    lv_obj_set_size(arc_sec_, 300, 300);
-    lv_obj_set_pos(arc_sec_, 10, -92);  // only bottom arc visible
-    lv_arc_set_rotation(arc_sec_, 180);
+    lv_obj_set_size(arc_sec_, 150, 150);
+    lv_obj_set_pos(arc_sec_, 2, 2);
+    lv_arc_set_rotation(arc_sec_, 270);
     lv_arc_set_range(arc_sec_, 0, 60);
     lv_arc_set_value(arc_sec_, 0);
-    lv_arc_set_bg_angles(arc_sec_, 0, 180);
-    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0a1a2a), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_INDICATOR);
+    lv_arc_set_bg_angles(arc_sec_, 0, 360);
+    lv_obj_set_style_arc_width(arc_sec_, 5, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0f2040), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_sec_, 5, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x4ecca3), LV_PART_INDICATOR);
     lv_obj_remove_style(arc_sec_, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_sec_, LV_OBJ_FLAG_CLICKABLE);
 
-    // ── Row 2: Gregorian date (full width, large) ──
+    // 96pt time centered inside the arc
+    lbl_clock_time_ = lv_label_create(tab);
+    lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
+    lv_obj_set_style_text_font(lbl_clock_time_, &font_digit_96, 0);
+    lv_obj_set_style_text_align(lbl_clock_time_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_clock_time_, 10, 18);
+    lv_label_set_text(lbl_clock_time_, "--:--");
+
+    // AM/PM below time inside arc
+    lbl_ampm_ = lv_label_create(tab);
+    lv_obj_set_style_text_color(lbl_ampm_, lv_color_hex(0xf0a500), 0);
+    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_align(lbl_ampm_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_ampm_, 60, 118);
+    lv_label_set_text(lbl_ampm_, "");
+
+    // Seconds digit (not needed with arc, remove)
+    lbl_sec_g_ = nullptr;
+
+    // ── Right column: stacked info ──
+    int rx = 162;
+
+    // Gregorian date
     lbl_clock_date_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_date_, lv_color_hex(0x88bbdd), 0);
-    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_20, 0);
-    lv_obj_set_pos(lbl_clock_date_, 10, 62);
+    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(lbl_clock_date_, rx, 4);
     lv_label_set_text(lbl_clock_date_, "");
 
-    // ── Row 3: Hijri date ──
+    // Hijri date
     lbl_clock_hijri_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_hijri_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_clock_hijri_, 10, 88);
+    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_clock_hijri_, rx, 42);
     lv_label_set_text(lbl_clock_hijri_, "");
 
-    // ── Row 4: Weather bar at bottom ──
-    weather_icon_clock_ = weather_icon_create(tab, 32);
-    lv_obj_set_pos(weather_icon_clock_, 10, 118);
+    // Weather icon + text
+    weather_icon_clock_ = weather_icon_create(tab, 36);
+    lv_obj_set_pos(weather_icon_clock_, rx, 74);
 
     lbl_weather_cur_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_weather_cur_, lv_color_hex(0x66aacc), 0);
     lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_weather_cur_, 48, 122);
+    lv_obj_set_pos(lbl_weather_cur_, rx + 40, 80);
     lv_label_set_text(lbl_weather_cur_, "");
 }
 
@@ -193,11 +196,7 @@ static void update_clock_tab() {
 
     if (arc_sec_) lv_arc_set_value(arc_sec_, t.tm_sec);
 
-    if (lbl_sec_g_) {
-        char sbuf[4];
-        snprintf(sbuf, sizeof(sbuf), ":%02d", t.tm_sec);
-        lv_label_set_text(lbl_sec_g_, sbuf);
-    }
+    // sec_g_ not used — seconds shown via arc
 
     static const char* days[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     static const char* months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
@@ -336,9 +335,9 @@ static void build_timer_tab(lv_obj_t* tab) {
     lv_obj_clear_flag(timer_run_panel_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(timer_run_panel_, LV_OBJ_FLAG_HIDDEN);
 
-    // Large countdown — 48pt is our max font, fill the space
+    // Massive countdown — 96pt custom font
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
-    lv_obj_set_style_text_font(lbl_timer_countdown_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_96, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
     lv_obj_set_style_text_align(lbl_timer_countdown_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_timer_countdown_, 310);
@@ -392,7 +391,7 @@ static uint32_t sw_elapsed() {
 
 static void build_stopwatch_tab(lv_obj_t* tab) {
     lbl_sw_time_ = lv_label_create(tab);
-    lv_obj_set_style_text_font(lbl_sw_time_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl_sw_time_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_sw_time_, lv_color_hex(0x44aaff), 0);
     lv_obj_set_style_text_align(lbl_sw_time_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_sw_time_, 310);
@@ -574,16 +573,17 @@ static void build_weather_tab(lv_obj_t* tab) {
     lv_obj_set_pos(lbl_weather_status_, 48, 6);
     lv_label_set_text(lbl_weather_status_, "Seattle Weather");
 
-    // 7-day forecast rows with larger icons
+    // 7-day forecast: icon | day | temps | condition
     for (int i = 0; i < 7; i++) {
-        int y = 42 + i * 22;
-        weather_icons_fc_[i] = weather_icon_create(tab, 20);
-        lv_obj_set_pos(weather_icons_fc_[i], 6, y);
+        int y = 42 + i * 21;
+        weather_icons_fc_[i] = weather_icon_create(tab, 18);
+        lv_obj_set_pos(weather_icons_fc_[i], 4, y);
 
         lbl_weather_fc_[i] = lv_label_create(tab);
         lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_DIM, 0);
-        lv_obj_set_pos(lbl_weather_fc_[i], 30, y + 2);
+        lv_obj_set_pos(lbl_weather_fc_[i], 26, y + 1);
+        lv_obj_set_width(lbl_weather_fc_[i], 290);
         lv_label_set_text(lbl_weather_fc_[i], "");
     }
 }
@@ -637,8 +637,8 @@ static void update_weather_tab() {
         if (weather_icons_fc_[i])
             weather_icon_set_code(weather_icons_fc_[i], w->forecast[i].code);
         const char* dn = (i == 0) ? "Today" : day_names[(wday + i) % 7];
-        char buf[48];
-        snprintf(buf, sizeof(buf), "%-5s H:%.0f° L:%.0f° %s",
+        char buf[52];
+        snprintf(buf, sizeof(buf), "%-5s  %3.0f° / %3.0f°F  %s",
                  dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
                  weather_code_str(w->forecast[i].code));
         lv_label_set_text(lbl_weather_fc_[i], buf);
