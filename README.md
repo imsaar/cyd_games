@@ -131,6 +131,7 @@ Each game syncs state independently — turn-based games send moves, Pong syncs 
 For technical details, see the design documents:
 - **[ESP-NOW Transport Design](docs/esp-now-transport.md)** — Transport layer, discovery protocol, peer management, packet formats
 - **[Game Network Sync Design](docs/game-network-sync.md)** — Per-game sync patterns, JSON message formats, reliability strategies
+- **[LVGL + ESP32 Lessons Learned](docs/lvgl-esp32-lessons.md)** — Custom fonts, text rendering, touch handling, layout, scrolling, drawing, ArduinoJson gotchas
 
 ### Device name
 
