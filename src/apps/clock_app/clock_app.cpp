@@ -4,6 +4,7 @@
 #include "../../utils/alert_state.h"
 #include "../../net/ntp_time.h"
 #include "../../net/weather.h"
+#include "../../ui/weather_icons.h"
 #include <Arduino.h>
 #include <time.h>
 #include <math.h>
@@ -56,6 +57,8 @@ static bool alarm_set_pm_ = false;
 static lv_obj_t* lbl_weather_cur_ = nullptr;
 static lv_obj_t* lbl_weather_fc_[7] = {};
 static lv_obj_t* lbl_weather_status_ = nullptr;
+static lv_obj_t* weather_icon_clock_ = nullptr;  // icon on clock face
+static lv_obj_t* weather_icons_fc_[7] = {};      // icons in forecast
 
 static void back_cb(lv_event_t*) { screen_manager_back_to_menu(); }
 static const char* weather_symbol(int code);  // forward decl
@@ -167,19 +170,15 @@ static void build_clock_tab(lv_obj_t* tab) {
     lv_obj_set_pos(lbl_clock_hijri_, rx, 46);
     lv_label_set_text(lbl_clock_hijri_, "");
 
-    // Weather with icon
+    // Weather icon + text
+    weather_icon_clock_ = weather_icon_create(tab, 28);
+    lv_obj_set_pos(weather_icon_clock_, rx, 76);
+
     lbl_weather_cur_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_weather_cur_, lv_color_hex(0x66aacc), 0);
     lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_14, 0);
-    lv_obj_set_pos(lbl_weather_cur_, rx, 78);
+    lv_obj_set_pos(lbl_weather_cur_, rx + 32, 82);
     lv_label_set_text(lbl_weather_cur_, "");
-
-    // Bottom: Gregorian date in bigger font spanning full width
-    lv_obj_t* lbl_day = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_day, lv_color_hex(0x556688), 0);
-    lv_obj_set_style_text_font(lbl_day, &lv_font_montserrat_12, 0);
-    lv_obj_set_pos(lbl_day, 8, 120);
-    lv_label_set_text(lbl_day, "");
 }
 
 static void update_clock_tab() {
@@ -227,19 +226,22 @@ static void update_clock_tab() {
         hbuf[0] = '\0';
     if (lbl_clock_hijri_) lv_label_set_text(lbl_clock_hijri_, hbuf);
 
-    // Weather with condition icon
+    // Weather icon + text
     const WeatherData* w = weather_get();
-    if (w->valid && lbl_weather_cur_) {
-        char wbuf[40];
-        snprintf(wbuf, sizeof(wbuf), "%s %.0f°F %s",
-                 weather_symbol(w->current_code),
-                 w->current_temp, weather_code_str(w->current_code));
-        lv_label_set_text(lbl_weather_cur_, wbuf);
-        lv_color_t wc = (w->current_temp > 75) ? lv_color_hex(0xe94560) :
-                         (w->current_temp > 60) ? lv_color_hex(0xf0a500) :
-                         (w->current_temp > 45) ? lv_color_hex(0x4ecca3) :
-                                                   lv_color_hex(0x4488ff);
-        lv_obj_set_style_text_color(lbl_weather_cur_, wc, 0);
+    if (w->valid) {
+        if (weather_icon_clock_)
+            weather_icon_set_code(weather_icon_clock_, w->current_code);
+        if (lbl_weather_cur_) {
+            char wbuf[32];
+            snprintf(wbuf, sizeof(wbuf), "%.0f°F %s",
+                     w->current_temp, weather_code_str(w->current_code));
+            lv_label_set_text(lbl_weather_cur_, wbuf);
+            lv_color_t wc = (w->current_temp > 75) ? lv_color_hex(0xe94560) :
+                             (w->current_temp > 60) ? lv_color_hex(0xf0a500) :
+                             (w->current_temp > 45) ? lv_color_hex(0x4ecca3) :
+                                                       lv_color_hex(0x4488ff);
+            lv_obj_set_style_text_color(lbl_weather_cur_, wc, 0);
+        }
     }
 }
 
@@ -568,13 +570,16 @@ static void build_weather_tab(lv_obj_t* tab) {
     lv_obj_set_pos(lbl_weather_status_, 8, 2);
     lv_label_set_text(lbl_weather_status_, "Seattle Weather");
 
-    // 7-day forecast rows
+    // 7-day forecast rows with icons
     for (int i = 0; i < 7; i++) {
         int y = 30 + i * 22;
+        weather_icons_fc_[i] = weather_icon_create(tab, 18);
+        lv_obj_set_pos(weather_icons_fc_[i], 6, y);
+
         lbl_weather_fc_[i] = lv_label_create(tab);
         lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_DIM, 0);
-        lv_obj_set_pos(lbl_weather_fc_[i], 8, y);
+        lv_obj_set_pos(lbl_weather_fc_[i], 28, y + 1);
         lv_label_set_text(lbl_weather_fc_[i], "");
     }
 }
@@ -623,11 +628,12 @@ static void update_weather_tab() {
 
     for (int i = 0; i < w->forecast_days && i < 7; i++) {
         if (!lbl_weather_fc_[i]) continue;
+        if (weather_icons_fc_[i])
+            weather_icon_set_code(weather_icons_fc_[i], w->forecast[i].code);
         const char* dn = (i == 0) ? "Today" : day_names[(wday + i) % 7];
-        const char* sym = weather_symbol(w->forecast[i].code);
-        char buf[52];
-        snprintf(buf, sizeof(buf), "%s %-5s H:%.0f° L:%.0f° %s",
-                 sym, dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
+        char buf[48];
+        snprintf(buf, sizeof(buf), "%-5s H:%.0f° L:%.0f° %s",
+                 dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
                  weather_code_str(w->forecast[i].code));
         lv_label_set_text(lbl_weather_fc_[i], buf);
 
@@ -752,5 +758,7 @@ void clock_app_destroy() {
     lbl_alarm_hh_ = nullptr; lbl_alarm_mm_ = nullptr; lbl_alarm_ampm_ = nullptr;
     lbl_alarm_status_ = nullptr; btn_alarm_set_ = nullptr;
     lbl_weather_cur_ = nullptr; lbl_weather_status_ = nullptr;
+    weather_icon_clock_ = nullptr;
     memset(lbl_weather_fc_, 0, sizeof(lbl_weather_fc_));
+    memset(weather_icons_fc_, 0, sizeof(weather_icons_fc_));
 }
