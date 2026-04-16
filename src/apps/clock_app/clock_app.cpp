@@ -21,6 +21,7 @@ static lv_obj_t* lbl_clock_time_ = nullptr;
 static lv_obj_t* lbl_clock_date_ = nullptr;
 static lv_obj_t* lbl_clock_hijri_ = nullptr;
 static lv_obj_t* arc_sec_ = nullptr;
+static lv_obj_t* arc_q_[4] = {};  // quadrant arcs
 
 // ── Timer tab ──
 static lv_obj_t* lbl_timer_hh_ = nullptr;
@@ -156,20 +157,25 @@ static void build_clock_tab(lv_obj_t* tab) {
     lv_obj_set_pos(lbl_clock_date_, 4, 2);
     lv_label_set_text(lbl_clock_date_, "");
 
-    // ── TOP-RIGHT: Seconds arc ──
-    arc_sec_ = lv_arc_create(tab);
-    lv_obj_set_size(arc_sec_, 40, 40);
-    lv_obj_set_pos(arc_sec_, 276, 0);
-    lv_arc_set_rotation(arc_sec_, 270);
-    lv_arc_set_range(arc_sec_, 0, 60);
-    lv_arc_set_value(arc_sec_, 0);
-    lv_arc_set_bg_angles(arc_sec_, 0, 360);
-    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0f2040), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x4ecca3), LV_PART_INDICATOR);
-    lv_obj_remove_style(arc_sec_, NULL, LV_PART_KNOB);
-    lv_obj_clear_flag(arc_sec_, LV_OBJ_FLAG_CLICKABLE);
+    // ── TOP-RIGHT: Seconds arc with colored quadrants ──
+    // 4 arcs stacked, each covers 90° (15 seconds)
+    static const uint32_t q_colors[] = {0x4ecca3, 0x44aaff, 0xf0a500, 0xe94560};
+    arc_sec_ = nullptr;  // not used as single arc
+    for (int q = 0; q < 4; q++) {
+        arc_q_[q] = lv_arc_create(tab);
+        lv_obj_set_size(arc_q_[q], 40, 40);
+        lv_obj_set_pos(arc_q_[q], 276, 0);
+        lv_arc_set_rotation(arc_q_[q], 270);
+        lv_arc_set_range(arc_q_[q], 0, 15);
+        lv_arc_set_value(arc_q_[q], 0);
+        lv_arc_set_bg_angles(arc_q_[q], q * 90, q * 90 + 90);
+        lv_obj_set_style_arc_width(arc_q_[q], 4, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(arc_q_[q], lv_color_hex(0x0f2040), LV_PART_MAIN);
+        lv_obj_set_style_arc_width(arc_q_[q], 4, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(arc_q_[q], lv_color_hex(q_colors[q]), LV_PART_INDICATOR);
+        lv_obj_remove_style(arc_q_[q], NULL, LV_PART_KNOB);
+        lv_obj_clear_flag(arc_q_[q], LV_OBJ_FLAG_CLICKABLE);
+    }
 
     // ── BOTTOM-LEFT: Weather icon + temp ──
     weather_icon_clock_ = weather_icon_create(tab, 28);
@@ -198,7 +204,15 @@ static void update_clock_tab() {
     if (lbl_clock_time_) lv_label_set_text(lbl_clock_time_, tbuf);
     if (lbl_ampm_) lv_label_set_text(lbl_ampm_, t.tm_hour >= 12 ? "PM" : "AM");
 
-    if (arc_sec_) lv_arc_set_value(arc_sec_, t.tm_sec);
+    // Update quadrant arcs: each covers 15 seconds
+    for (int q = 0; q < 4; q++) {
+        if (!arc_q_[q]) continue;
+        int q_start = q * 15;
+        int fill = t.tm_sec - q_start;
+        if (fill < 0) fill = 0;
+        if (fill > 15) fill = 15;
+        lv_arc_set_value(arc_q_[q], fill);
+    }
 
     // sec_g_ not used — seconds shown via arc
 
@@ -788,7 +802,8 @@ void clock_app_update() {
 
 void clock_app_destroy() {
     screen_ = nullptr; tabview_ = nullptr;
-    lbl_clock_time_ = nullptr; lbl_clock_date_ = nullptr; lbl_clock_hijri_ = nullptr; arc_sec_ = nullptr; lbl_sec_g_ = nullptr;
+    lbl_clock_time_ = nullptr; lbl_clock_date_ = nullptr; lbl_clock_hijri_ = nullptr;
+    arc_sec_ = nullptr; lbl_sec_g_ = nullptr; memset(arc_q_, 0, sizeof(arc_q_));
     lbl_timer_hh_ = nullptr; lbl_timer_mm_ = nullptr; lbl_timer_ss_ = nullptr;
     lbl_timer_countdown_ = nullptr; btn_timer_start_ = nullptr;
     timer_set_panel_ = nullptr; timer_run_panel_ = nullptr;
