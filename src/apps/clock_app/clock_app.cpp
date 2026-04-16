@@ -122,67 +122,71 @@ static void build_clock_tab(lv_obj_t* tab) {
     // │  [sun icon] 62°F Cloudy   Seattle    │  <- weather bar at bottom
     // └──────────────────────────────────────┘
 
-    // ── Left: Seconds arc circle with time inside ──
-    // Arc: 150x150 centered vertically on left
-    arc_sec_ = lv_arc_create(tab);
-    lv_obj_set_size(arc_sec_, 150, 150);
-    lv_obj_set_pos(arc_sec_, 2, 2);
-    lv_arc_set_rotation(arc_sec_, 270);
-    lv_arc_set_range(arc_sec_, 0, 60);
-    lv_arc_set_value(arc_sec_, 0);
-    lv_arc_set_bg_angles(arc_sec_, 0, 360);
-    lv_obj_set_style_arc_width(arc_sec_, 5, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0f2040), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_sec_, 5, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x4ecca3), LV_PART_INDICATOR);
-    lv_obj_remove_style(arc_sec_, NULL, LV_PART_KNOB);
-    lv_obj_clear_flag(arc_sec_, LV_OBJ_FLAG_CLICKABLE);
+    // Content area: 320 x ~196 (after 44px nav)
+    // Layout: 96pt time CENTERED, info in four corners
+    //
+    // ┌─[Gregorian date]────────────[Seconds arc]─┐
+    // │                                            │
+    // │              12:30  PM                     │
+    // │                                            │
+    // └─[Weather icon+temp]──────[Hijri date]─────┘
 
-    // 96pt time centered inside the arc
+    // ── CENTER: huge time ──
     lbl_clock_time_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
     lv_obj_set_style_text_font(lbl_clock_time_, &font_digit_96, 0);
     lv_obj_set_style_text_align(lbl_clock_time_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_clock_time_, 10, 18);
-    lv_label_set_text(lbl_clock_time_, "--:--");
+    lv_obj_set_width(lbl_clock_time_, 260);
+    lv_obj_align(lbl_clock_time_, LV_ALIGN_CENTER, -10, -6);
+    lv_label_set_text(lbl_clock_time_, "");
 
-    // AM/PM below time inside arc
+    // AM/PM right of time center
     lbl_ampm_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_ampm_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_align(lbl_ampm_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_ampm_, 60, 118);
+    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_20, 0);
+    lv_obj_align(lbl_ampm_, LV_ALIGN_CENTER, 120, -6);
     lv_label_set_text(lbl_ampm_, "");
 
-    // Seconds digit (not needed with arc, remove)
     lbl_sec_g_ = nullptr;
 
-    // ── Right column: stacked info ──
-    int rx = 162;
-
-    // Gregorian date
+    // ── TOP-LEFT: Gregorian date ──
     lbl_clock_date_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_date_, lv_color_hex(0x88bbdd), 0);
-    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_clock_date_, rx, 4);
+    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_clock_date_, 4, 2);
     lv_label_set_text(lbl_clock_date_, "");
 
-    // Hijri date
-    lbl_clock_hijri_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_clock_hijri_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_14, 0);
-    lv_obj_set_pos(lbl_clock_hijri_, rx, 42);
-    lv_label_set_text(lbl_clock_hijri_, "");
+    // ── TOP-RIGHT: Seconds arc ──
+    arc_sec_ = lv_arc_create(tab);
+    lv_obj_set_size(arc_sec_, 40, 40);
+    lv_obj_set_pos(arc_sec_, 276, 0);
+    lv_arc_set_rotation(arc_sec_, 270);
+    lv_arc_set_range(arc_sec_, 0, 60);
+    lv_arc_set_value(arc_sec_, 0);
+    lv_arc_set_bg_angles(arc_sec_, 0, 360);
+    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0f2040), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x4ecca3), LV_PART_INDICATOR);
+    lv_obj_remove_style(arc_sec_, NULL, LV_PART_KNOB);
+    lv_obj_clear_flag(arc_sec_, LV_OBJ_FLAG_CLICKABLE);
 
-    // Weather icon + text
-    weather_icon_clock_ = weather_icon_create(tab, 36);
-    lv_obj_set_pos(weather_icon_clock_, rx, 74);
+    // ── BOTTOM-LEFT: Weather icon + temp ──
+    weather_icon_clock_ = weather_icon_create(tab, 28);
+    lv_obj_set_pos(weather_icon_clock_, 4, 134);
 
     lbl_weather_cur_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_weather_cur_, lv_color_hex(0x66aacc), 0);
-    lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_weather_cur_, rx + 40, 80);
+    lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lbl_weather_cur_, 36, 138);
     lv_label_set_text(lbl_weather_cur_, "");
+
+    // ── BOTTOM-RIGHT: Hijri date ──
+    lbl_clock_hijri_ = lv_label_create(tab);
+    lv_obj_set_style_text_color(lbl_clock_hijri_, lv_color_hex(0xf0a500), 0);
+    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_12, 0);
+    lv_obj_align(lbl_clock_hijri_, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
+    lv_label_set_text(lbl_clock_hijri_, "");
 }
 
 static void update_clock_tab() {
@@ -573,19 +577,20 @@ static void build_weather_tab(lv_obj_t* tab) {
     lv_obj_set_pos(lbl_weather_status_, 48, 6);
     lv_label_set_text(lbl_weather_status_, "Seattle Weather");
 
-    // 7-day forecast: icon | day | temps | condition
+    // 7-day forecast: large icon | day | temps | condition
     for (int i = 0; i < 7; i++) {
-        int y = 42 + i * 21;
-        weather_icons_fc_[i] = weather_icon_create(tab, 18);
+        int y = 40 + i * 22;
+        weather_icons_fc_[i] = weather_icon_create(tab, 20);
         lv_obj_set_pos(weather_icons_fc_[i], 4, y);
 
         lbl_weather_fc_[i] = lv_label_create(tab);
         lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_DIM, 0);
-        lv_obj_set_pos(lbl_weather_fc_[i], 26, y + 1);
+        lv_obj_set_pos(lbl_weather_fc_[i], 28, y + 2);
         lv_obj_set_width(lbl_weather_fc_[i], 290);
         lv_label_set_text(lbl_weather_fc_[i], "");
     }
+    // Note: 7 rows x 22px = 154px. Max icon size limited by row height.
 }
 
 // Text-based weather icons (LVGL built-in fonts have no weather glyphs)
