@@ -391,14 +391,15 @@ static uint32_t sw_elapsed() {
 
 static void build_stopwatch_tab(lv_obj_t* tab) {
     lbl_sw_time_ = lv_label_create(tab);
-    lv_obj_set_style_text_font(lbl_sw_time_, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_text_font(lbl_sw_time_, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(lbl_sw_time_, lv_color_hex(0x44aaff), 0);
     lv_obj_set_style_text_align(lbl_sw_time_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_sw_time_, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_set_width(lbl_sw_time_, 310);
+    lv_obj_align(lbl_sw_time_, LV_ALIGN_TOP_MID, 0, 20);
     lv_label_set_text(lbl_sw_time_, "00:00.00");
 
-    btn_sw_start_ = ui_create_btn(tab, "Start", 90, 32);
-    lv_obj_align(btn_sw_start_, LV_ALIGN_BOTTOM_MID, -55, -38);
+    btn_sw_start_ = ui_create_btn(tab, "Start", 130, 36);
+    lv_obj_align(btn_sw_start_, LV_ALIGN_BOTTOM_MID, -70, -6);
     lv_obj_add_event_cb(btn_sw_start_, [](lv_event_t*) {
         if (sw_running_) {
             sw_accum_ms_ += millis() - sw_start_ms_;
@@ -413,8 +414,8 @@ static void build_stopwatch_tab(lv_obj_t* tab) {
         }
     }, LV_EVENT_CLICKED, NULL);
 
-    btn_sw_lap_ = ui_create_btn(tab, "Reset", 90, 32);
-    lv_obj_align(btn_sw_lap_, LV_ALIGN_BOTTOM_MID, 55, -38);
+    btn_sw_lap_ = ui_create_btn(tab, "Reset", 130, 36);
+    lv_obj_align(btn_sw_lap_, LV_ALIGN_BOTTOM_MID, 70, -6);
     lv_obj_add_event_cb(btn_sw_lap_, [](lv_event_t*) {
         if (sw_running_) {
             if (sw_lap_count_ < 20) sw_laps_[sw_lap_count_++] = sw_elapsed();
@@ -439,8 +440,9 @@ static void build_stopwatch_tab(lv_obj_t* tab) {
     lbl_sw_laps_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_sw_laps_, UI_COLOR_DIM, 0);
     lv_obj_set_style_text_font(lbl_sw_laps_, &lv_font_montserrat_12, 0);
-    lv_obj_align(lbl_sw_laps_, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_set_style_text_align(lbl_sw_laps_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl_sw_laps_, 310);
+    lv_obj_align(lbl_sw_laps_, LV_ALIGN_CENTER, 0, 20);
     lv_label_set_text(lbl_sw_laps_, "");
 }
 
@@ -564,7 +566,7 @@ static void build_weather_tab(lv_obj_t* tab) {
     lv_obj_set_style_text_color(lbl_weather_status_, lv_color_hex(0x4ecca3), 0);
     lv_obj_set_style_text_font(lbl_weather_status_, &lv_font_montserrat_20, 0);
     lv_obj_set_pos(lbl_weather_status_, 8, 2);
-    lv_label_set_text(lbl_weather_status_, LV_SYMBOL_IMAGE " Seattle");
+    lv_label_set_text(lbl_weather_status_, "Seattle Weather");
 
     // 7-day forecast rows
     for (int i = 0; i < 7; i++) {
@@ -577,26 +579,26 @@ static void build_weather_tab(lv_obj_t* tab) {
     }
 }
 
+// Text-based weather icons (LVGL built-in fonts have no weather glyphs)
 static const char* weather_symbol(int code) {
-    // Using LVGL symbols that best match weather conditions
-    if (code == 0) return LV_SYMBOL_IMAGE;        // clear sky (sun image)
-    if (code <= 3) return LV_SYMBOL_EYE_CLOSE;    // partly cloudy (hazy)
-    if (code <= 48) return LV_SYMBOL_EYE_CLOSE;   // fog (low visibility)
-    if (code <= 55) return LV_SYMBOL_LOOP;         // drizzle (light cycle)
-    if (code <= 57) return LV_SYMBOL_WARNING;      // freezing drizzle
-    if (code <= 65) return LV_SYMBOL_DOWNLOAD;     // rain (drops falling)
-    if (code <= 67) return LV_SYMBOL_WARNING;      // freezing rain
-    if (code <= 77) return LV_SYMBOL_REFRESH;      // snow (flurry)
-    if (code <= 82) return LV_SYMBOL_DOWNLOAD;     // showers
-    if (code <= 86) return LV_SYMBOL_REFRESH;      // snow showers
-    return LV_SYMBOL_CHARGE;                       // thunderstorm
+    if (code == 0) return "SUN";
+    if (code <= 3) return "CLD";
+    if (code <= 48) return "FOG";
+    if (code <= 55) return "DRZ";
+    if (code <= 57) return "FRZ";
+    if (code <= 65) return "RAN";
+    if (code <= 67) return "FRZ";
+    if (code <= 77) return "SNW";
+    if (code <= 82) return "SHR";
+    if (code <= 86) return "SNW";
+    return "STM";
 }
 
 static void update_weather_tab() {
     const WeatherData* w = weather_get();
     if (!w->valid) {
         if (lbl_weather_status_)
-            lv_label_set_text(lbl_weather_status_, LV_SYMBOL_IMAGE " Seattle\nLoading...");
+            lv_label_set_text(lbl_weather_status_, "Seattle Weather\nLoading...");
         return;
     }
 
@@ -656,7 +658,7 @@ lv_obj_t* clock_app_create() {
     static const int NAV_COUNT = 6;
     static const int ROW_H = 20;
     static const int NAV_H = ROW_H * 2 + 4;
-    int col_w[] = {72, 64, 60, 88, 64, 72};  // per-button widths
+    int col_w[] = {76, 120, 120, 106, 106, 104};  // fill full 320px width
     int row_x[] = {0, 0};  // running x for each row
 
     memset(nav_btns_g, 0, sizeof(nav_btns_g));
