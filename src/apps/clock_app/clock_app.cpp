@@ -10,6 +10,9 @@
 
 static lv_obj_t* screen_ = nullptr;
 static lv_obj_t* tabview_ = nullptr;
+static int active_tab_g = 0;
+static lv_obj_t* nav_panels_[5] = {};
+static lv_obj_t* nav_btns_g[6] = {};
 
 // ── Clock tab ──
 static lv_obj_t* lbl_clock_time_ = nullptr;
@@ -107,8 +110,8 @@ static lv_obj_t* lbl_ampm_ = nullptr;
 static void build_clock_tab(lv_obj_t* tab) {
     // Outer decorative arc (full circle, subtle)
     lv_obj_t* arc_bg = lv_arc_create(tab);
-    lv_obj_set_size(arc_bg, 148, 148);
-    lv_obj_align(arc_bg, LV_ALIGN_LEFT_MID, 6, 0);
+    lv_obj_set_size(arc_bg, 170, 170);
+    lv_obj_align(arc_bg, LV_ALIGN_LEFT_MID, 2, 0);
     lv_arc_set_rotation(arc_bg, 0);
     lv_arc_set_range(arc_bg, 0, 100);
     lv_arc_set_value(arc_bg, 100);
@@ -122,8 +125,8 @@ static void build_clock_tab(lv_obj_t* tab) {
 
     // Seconds arc ring (animated)
     arc_sec_ = lv_arc_create(tab);
-    lv_obj_set_size(arc_sec_, 134, 134);
-    lv_obj_align(arc_sec_, LV_ALIGN_LEFT_MID, 13, 0);
+    lv_obj_set_size(arc_sec_, 156, 156);
+    lv_obj_align(arc_sec_, LV_ALIGN_LEFT_MID, 9, 0);
     lv_arc_set_rotation(arc_sec_, 270);
     lv_arc_set_range(arc_sec_, 0, 60);
     lv_arc_set_value(arc_sec_, 0);
@@ -138,17 +141,17 @@ static void build_clock_tab(lv_obj_t* tab) {
     // Time centered inside arc circle
     lbl_clock_time_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_style_text_font(lbl_clock_time_, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(lbl_clock_time_, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_align(lbl_clock_time_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_clock_time_, LV_ALIGN_LEFT_MID, 36, -10);
+    lv_obj_align(lbl_clock_time_, LV_ALIGN_LEFT_MID, 32, -14);
     lv_label_set_text(lbl_clock_time_, "--:--");
 
     // AM/PM centered below time
     lbl_ampm_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_ampm_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_align(lbl_ampm_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_ampm_, LV_ALIGN_LEFT_MID, 58, 12);
+    lv_obj_align(lbl_ampm_, LV_ALIGN_LEFT_MID, 60, 16);
     lv_label_set_text(lbl_ampm_, "");
 
     // Right side: Gregorian date
@@ -271,36 +274,32 @@ static void build_timer_tab(lv_obj_t* tab) {
     lv_obj_set_style_text_color(lbl_timer_ss_, lv_color_hex(0x4ecca3), 0);
     lv_obj_set_pos(lbl_timer_ss_, cx + 40, y);
 
-    y += 44;
+    y += 46;
 
-    // +/- for HH
+    // +/- buttons (larger for touch)
     auto mk_btn = [&](const char* txt, int x, int by) {
-        lv_obj_t* b = ui_create_btn(timer_set_panel_, txt, 32, 24);
+        lv_obj_t* b = ui_create_btn(timer_set_panel_, txt, 40, 30);
         lv_obj_set_pos(b, x, by);
         return b;
     };
-    lv_obj_t* hh_up = mk_btn("+", cx - 104, y);
+    lv_obj_t* hh_up = mk_btn("+", cx - 108, y);
     lv_obj_add_event_cb(hh_up, [](lv_event_t*) { if (timer_set_hr_ < 23) timer_set_hr_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* hh_dn = mk_btn("-", cx - 68, y);
+    lv_obj_t* hh_dn = mk_btn("-", cx - 64, y);
     lv_obj_add_event_cb(hh_dn, [](lv_event_t*) { if (timer_set_hr_ > 0) timer_set_hr_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
-    // +/- for MM
-    lv_obj_t* mm_up = mk_btn("+", cx - 34, y);
+    lv_obj_t* mm_up = mk_btn("+", cx - 18, y);
     lv_obj_add_event_cb(mm_up, [](lv_event_t*) { if (timer_set_min_ < 59) timer_set_min_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* mm_dn = mk_btn("-", cx + 2, y);
+    lv_obj_t* mm_dn = mk_btn("-", cx + 26, y);
     lv_obj_add_event_cb(mm_dn, [](lv_event_t*) { if (timer_set_min_ > 0) timer_set_min_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
-    // +/- for SS
-    lv_obj_t* ss_up = mk_btn("+", cx + 36, y);
+    lv_obj_t* ss_up = mk_btn("+", cx + 72, y);
     lv_obj_add_event_cb(ss_up, [](lv_event_t*) { if (timer_set_sec_ < 59) timer_set_sec_++; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* ss_dn = mk_btn("-", cx + 72, y);
+    lv_obj_t* ss_dn = mk_btn("-", cx + 116, y);
     lv_obj_add_event_cb(ss_dn, [](lv_event_t*) { if (timer_set_sec_ > 0) timer_set_sec_--; refresh_timer_set(); }, LV_EVENT_CLICKED, NULL);
 
-    y += 32;
-
-    // Start button
-    lv_obj_t* start = ui_create_btn(timer_set_panel_, "Start", 110, 32);
-    lv_obj_set_pos(start, cx - 55, y);
+    // Start button — full width at bottom
+    lv_obj_t* start = ui_create_btn(timer_set_panel_, LV_SYMBOL_PLAY " Start", 280, 40);
+    lv_obj_align(start, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_add_event_cb(start, [](lv_event_t*) {
         uint32_t secs = timer_set_hr_ * 3600 + timer_set_min_ * 60 + timer_set_sec_;
         if (secs == 0) return;
@@ -321,11 +320,12 @@ static void build_timer_tab(lv_obj_t* tab) {
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
     lv_obj_set_style_text_font(lbl_timer_countdown_, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
-    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_text_align(lbl_timer_countdown_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_CENTER, 0, -25);
     lv_label_set_text(lbl_timer_countdown_, "00:00");
 
-    lv_obj_t* cancel = ui_create_btn(timer_run_panel_, "Cancel", 100, 32);
-    lv_obj_align(cancel, LV_ALIGN_CENTER, 0, 30);
+    lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 200, 40);
+    lv_obj_align(cancel, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_add_event_cb(cancel, [](lv_event_t*) {
         alert_state_cancel_timer();
         show_timer_set_mode();
@@ -530,47 +530,56 @@ static void build_alarm_tab(lv_obj_t* tab) {
 // ══════════════════════════════════════════
 
 static void build_weather_tab(lv_obj_t* tab) {
+    // Current weather header
     lbl_weather_status_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_weather_status_, lv_color_hex(0x66aacc), 0);
-    lv_obj_set_style_text_font(lbl_weather_status_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_weather_status_, 8, 4);
-    lv_label_set_text(lbl_weather_status_, "Seattle Weather");
+    lv_obj_set_style_text_color(lbl_weather_status_, lv_color_hex(0x4ecca3), 0);
+    lv_obj_set_style_text_font(lbl_weather_status_, &lv_font_montserrat_20, 0);
+    lv_obj_set_pos(lbl_weather_status_, 8, 2);
+    lv_label_set_text(lbl_weather_status_, LV_SYMBOL_IMAGE " Seattle");
 
     // 7-day forecast rows
-    static const char* day_names[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-    struct tm t;
-    int wday = 0;
-    if (getLocalTime(&t, 0)) wday = t.tm_wday;
-
     for (int i = 0; i < 7; i++) {
-        int y = 26 + i * 20;
+        int y = 30 + i * 22;
         lbl_weather_fc_[i] = lv_label_create(tab);
-        lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_DIM, 0);
         lv_obj_set_pos(lbl_weather_fc_[i], 8, y);
-
-        const char* dn = (i == 0) ? "Today" : day_names[(wday + i) % 7];
-        char buf[40];
-        snprintf(buf, sizeof(buf), "%-5s  --", dn);
-        lv_label_set_text(lbl_weather_fc_[i], buf);
+        lv_label_set_text(lbl_weather_fc_[i], "");
     }
+}
+
+static const char* weather_symbol(int code) {
+    if (code == 0) return LV_SYMBOL_IMAGE;       // clear/sun
+    if (code <= 3) return LV_SYMBOL_EYE_CLOSE;   // cloudy
+    if (code <= 48) return LV_SYMBOL_EYE_CLOSE;  // fog
+    if (code <= 67) return LV_SYMBOL_DOWNLOAD;    // rain
+    if (code <= 77) return LV_SYMBOL_REFRESH;     // snow
+    if (code <= 86) return LV_SYMBOL_DOWNLOAD;    // showers
+    return LV_SYMBOL_CHARGE;                      // thunder
 }
 
 static void update_weather_tab() {
     const WeatherData* w = weather_get();
     if (!w->valid) {
         if (lbl_weather_status_)
-            lv_label_set_text(lbl_weather_status_, "Seattle Weather\nLoading...");
+            lv_label_set_text(lbl_weather_status_, LV_SYMBOL_IMAGE " Seattle\nLoading...");
         return;
     }
 
-    // Header with current
-    char hdr[40];
-    snprintf(hdr, sizeof(hdr), "Seattle  %.0f°F  %s",
-             w->current_temp, weather_code_str(w->current_code));
-    if (lbl_weather_status_) lv_label_set_text(lbl_weather_status_, hdr);
+    char hdr[48];
+    snprintf(hdr, sizeof(hdr), "%s Seattle  %.0f°F  %s",
+             weather_symbol(w->current_code), w->current_temp,
+             weather_code_str(w->current_code));
+    if (lbl_weather_status_) {
+        lv_label_set_text(lbl_weather_status_, hdr);
+        // Color current temp
+        lv_color_t hc = (w->current_temp > 75) ? lv_color_hex(0xe94560) :
+                         (w->current_temp > 60) ? lv_color_hex(0xf0a500) :
+                         (w->current_temp > 45) ? lv_color_hex(0x4ecca3) :
+                                                   lv_color_hex(0x4488ff);
+        lv_obj_set_style_text_color(lbl_weather_status_, hc, 0);
+    }
 
-    // Forecast rows
     static const char* day_names[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     struct tm t;
     int wday = 0;
@@ -579,17 +588,19 @@ static void update_weather_tab() {
     for (int i = 0; i < w->forecast_days && i < 7; i++) {
         if (!lbl_weather_fc_[i]) continue;
         const char* dn = (i == 0) ? "Today" : day_names[(wday + i) % 7];
-        char buf[48];
-        snprintf(buf, sizeof(buf), "%-5s  %.0f/%.0f°F  %s",
-                 dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
+        const char* sym = weather_symbol(w->forecast[i].code);
+        char buf[52];
+        snprintf(buf, sizeof(buf), "%s %-5s %3.0f°/%3.0f°  %s",
+                 sym, dn, w->forecast[i].temp_max, w->forecast[i].temp_min,
                  weather_code_str(w->forecast[i].code));
         lv_label_set_text(lbl_weather_fc_[i], buf);
 
-        // Color: warm=orange, cool=blue
-        float avg = (w->forecast[i].temp_max + w->forecast[i].temp_min) / 2;
-        lv_color_t c = (avg > 70) ? lv_color_hex(0xf0a500) :
-                        (avg > 50) ? lv_color_hex(0x88bbdd) :
-                                     lv_color_hex(0x4488ff);
+        // Color by high temp
+        float hi = w->forecast[i].temp_max;
+        lv_color_t c = (hi > 80) ? lv_color_hex(0xe94560) :   // hot = red
+                        (hi > 65) ? lv_color_hex(0xf0a500) :   // warm = orange
+                        (hi > 50) ? lv_color_hex(0x4ecca3) :   // mild = green
+                                    lv_color_hex(0x4488ff);    // cold = blue
         lv_obj_set_style_text_color(lbl_weather_fc_[i], c, 0);
     }
 }
@@ -602,51 +613,78 @@ lv_obj_t* clock_app_create() {
     lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Back button
-    {
+    // ── Two-row nav bar ──
+    // Row 1: Menu, Clock, Timer  |  Row 2: Stopwatch, Alarm, Weather
+    static const char* nav_labels[] = {
+        LV_SYMBOL_LEFT " Menu", "Clock", "Timer",
+        "Stopwatch", "Alarm", "Weather"
+    };
+    static const int NAV_COUNT = 6;
+    static const int ROW_H = 20;
+    static const int NAV_H = ROW_H * 2 + 4;
+    int col_w[] = {72, 64, 60, 88, 64, 72};  // per-button widths
+    int row_x[] = {0, 0};  // running x for each row
+
+    memset(nav_btns_g, 0, sizeof(nav_btns_g));
+    for (int i = 0; i < NAV_COUNT; i++) {
+        int row = (i < 3) ? 0 : 1;
+        int y = row * (ROW_H + 2) + 1;
         lv_obj_t* btn = lv_btn_create(screen_);
-        lv_obj_set_size(btn, 30, 22);
-        lv_obj_set_pos(btn, 2, 2);
-        lv_obj_set_style_bg_color(btn, UI_COLOR_PRIMARY, 0);
+        lv_obj_set_size(btn, col_w[i], ROW_H);
+        lv_obj_set_pos(btn, row_x[row] + 2, y);
+        row_x[row] += col_w[i] + 2;
+        lv_obj_set_style_bg_color(btn, (i == 1) ? UI_COLOR_PRIMARY : UI_COLOR_CARD, 0);
         lv_obj_set_style_radius(btn, 4, 0);
+        lv_obj_set_style_pad_all(btn, 0, 0);
         lv_obj_t* lbl = lv_label_create(btn);
-        lv_label_set_text(lbl, LV_SYMBOL_LEFT);
+        lv_label_set_text(lbl, nav_labels[i]);
         lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, 0);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
         lv_obj_center(lbl);
-        lv_obj_add_event_cb(btn, back_cb, LV_EVENT_CLICKED, NULL);
+        nav_btns_g[i] = btn;
     }
 
-    tabview_ = lv_tabview_create(screen_, LV_DIR_TOP, 28);
-    lv_obj_set_size(tabview_, 320, 214);
-    lv_obj_set_pos(tabview_, 0, 26);
-    lv_obj_set_style_bg_color(tabview_, UI_COLOR_BG, 0);
-
-    lv_obj_t* tab_btns = lv_tabview_get_tab_btns(tabview_);
-    lv_obj_set_style_bg_color(tab_btns, UI_COLOR_CARD, 0);
-    lv_obj_set_style_text_color(tab_btns, UI_COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(tab_btns, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_bg_color(tab_btns, UI_COLOR_PRIMARY, LV_PART_ITEMS | LV_STATE_CHECKED);
-
-    lv_obj_t* t1 = lv_tabview_add_tab(tabview_, "Clock");
-    lv_obj_t* t2 = lv_tabview_add_tab(tabview_, "Timer");
-    lv_obj_t* t3 = lv_tabview_add_tab(tabview_, "Watch");
-    lv_obj_t* t4 = lv_tabview_add_tab(tabview_, "Alarm");
-    lv_obj_t* t5 = lv_tabview_add_tab(tabview_, LV_SYMBOL_IMAGE);
-
-    lv_obj_t* tabs[] = {t1, t2, t3, t4, t5};
-    for (auto* t : tabs) {
-        lv_obj_set_scrollbar_mode(t, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_clear_flag(t, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(t, UI_COLOR_BG, 0);
-        lv_obj_set_style_pad_all(t, 0, 0);
+    // Content panels (one per tab, stacked)
+    memset(nav_panels_, 0, sizeof(nav_panels_));
+    for (int i = 0; i < 5; i++) {
+        nav_panels_[i] = lv_obj_create(screen_);
+        lv_obj_remove_style_all(nav_panels_[i]);
+        lv_obj_set_size(nav_panels_[i], 320, 240 - NAV_H);
+        lv_obj_set_pos(nav_panels_[i], 0, NAV_H);
+        lv_obj_set_style_bg_color(nav_panels_[i], UI_COLOR_BG, 0);
+        lv_obj_set_style_bg_opa(nav_panels_[i], LV_OPA_COVER, 0);
+        lv_obj_set_scrollbar_mode(nav_panels_[i], LV_SCROLLBAR_MODE_OFF);
+        lv_obj_clear_flag(nav_panels_[i], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_pad_all(nav_panels_[i], 0, 0);
+        if (i > 0) lv_obj_add_flag(nav_panels_[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    build_clock_tab(t1);
-    build_timer_tab(t2);
-    build_stopwatch_tab(t3);
-    build_alarm_tab(t4);
-    build_weather_tab(t5);
+    active_tab_g = 0;
+
+    // Menu button (index 0)
+    lv_obj_add_event_cb(nav_btns_g[0], back_cb, LV_EVENT_CLICKED, NULL);
+    // Tab buttons (index 1-5 map to panels 0-4)
+    for (int i = 1; i < NAV_COUNT; i++) {
+        lv_obj_add_event_cb(nav_btns_g[i], [](lv_event_t* e) {
+            int idx = (int)(intptr_t)lv_event_get_user_data(e);
+            for (int j = 0; j < 5; j++) {
+                if (nav_panels_[j]) {
+                    if (j == idx) lv_obj_clear_flag(nav_panels_[j], LV_OBJ_FLAG_HIDDEN);
+                    else lv_obj_add_flag(nav_panels_[j], LV_OBJ_FLAG_HIDDEN);
+                }
+                if (nav_btns_g[j + 1])
+                    lv_obj_set_style_bg_color(nav_btns_g[j + 1],
+                        (j == idx) ? UI_COLOR_PRIMARY : UI_COLOR_CARD, 0);
+            }
+            active_tab_g = idx;
+        }, LV_EVENT_CLICKED, (void*)(intptr_t)(i - 1));
+    }
+
+    build_clock_tab(nav_panels_[0]);
+    build_timer_tab(nav_panels_[1]);
+    build_stopwatch_tab(nav_panels_[2]);
+    build_alarm_tab(nav_panels_[3]);
+    build_weather_tab(nav_panels_[4]);
 
     // If timer is currently running, show run mode
     if (alert_state_timer_running()) show_timer_run_mode();
@@ -659,8 +697,7 @@ void clock_app_update() {
     if (millis() - last < 100) return;
     last = millis();
 
-    uint16_t active = lv_tabview_get_tab_act(tabview_);
-    switch (active) {
+    switch (active_tab_g) {
         case 0: update_clock_tab(); break;
         case 1: update_timer_tab(); break;
         case 2: update_stopwatch_tab(); break;
