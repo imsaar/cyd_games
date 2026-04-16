@@ -391,7 +391,8 @@ void Sudoku::check_solution() {
         for (int c = 0; c < 9; c++) {
             if (given_[r][c]) continue;
             if (board_[r][c] == 0) {
-                checked_[r][c] = -2;  // empty/missed
+                board_[r][c] = solution_[r][c];  // fill in the answer
+                checked_[r][c] = -2;  // empty/missed (shown in yellow)
                 empty++;
             } else if (board_[r][c] != solution_[r][c]) {
                 checked_[r][c] = -1;  // wrong

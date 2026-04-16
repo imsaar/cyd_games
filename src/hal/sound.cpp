@@ -18,7 +18,7 @@ static const Note melody_startup[] = {
 };
 
 static const Note melody_move[] = {
-    {1200, 30}
+    {262, 30}
 };
 
 static const Note melody_opponent[] = {
