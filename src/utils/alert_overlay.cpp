@@ -17,7 +17,7 @@ bool alert_overlay_active() { return overlay_ != nullptr; }
 
 void alert_overlay_show_timer() {
     if (overlay_) return;
-    sound_timer_done();
+    sound_alarm_start();  // repeating sound until dismissed
 
     lv_obj_t* scr = lv_scr_act();
     overlay_ = lv_obj_create(scr);

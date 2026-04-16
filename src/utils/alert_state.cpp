@@ -1,4 +1,5 @@
 #include "alert_state.h"
+#include "../hal/prefs.h"
 #include <Arduino.h>
 #include <time.h>
 
@@ -16,10 +17,13 @@ static time_t   last_alarm_epoch_ = 0;
 void alert_state_init() {
     timer_running_ = false;
     timer_fired_ = false;
-    alarm_enabled_ = false;
     alarm_fired_ = false;
     alarm_snooze_until_ = 0;
     last_alarm_epoch_ = 0;
+    // Restore alarm from NVS
+    alarm_hour_ = prefs_get_alarm_hour();
+    alarm_minute_ = prefs_get_alarm_min();
+    alarm_enabled_ = prefs_get_alarm_on();
 }
 
 void alert_state_check() {
@@ -63,12 +67,16 @@ bool alert_state_timer_just_fired() {
 }
 
 // Alarm
-void alert_state_set_alarm(uint8_t h, uint8_t m) { alarm_hour_ = h; alarm_minute_ = m; }
+void alert_state_set_alarm(uint8_t h, uint8_t m) {
+    alarm_hour_ = h; alarm_minute_ = m;
+    prefs_set_alarm(h, m, alarm_enabled_);
+}
 void alert_state_enable_alarm(bool en) {
     alarm_enabled_ = en;
     alarm_fired_ = false;
     alarm_snooze_until_ = 0;
     if (!en) last_alarm_epoch_ = 0;
+    prefs_set_alarm(alarm_hour_, alarm_minute_, en);
 }
 void alert_state_cancel_alarm() { alert_state_enable_alarm(false); }
 bool alert_state_alarm_enabled() { return alarm_enabled_; }

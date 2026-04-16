@@ -32,3 +32,12 @@ void prefs_get_name(char* buf, size_t len) {
 void prefs_set_name(const char* name) {
     nvs.putString("name", name);
 }
+
+uint8_t prefs_get_alarm_hour() { return nvs.getUChar("alrm_h", 7); }
+uint8_t prefs_get_alarm_min()  { return nvs.getUChar("alrm_m", 0); }
+bool    prefs_get_alarm_on()   { return nvs.getBool("alrm_on", false); }
+void    prefs_set_alarm(uint8_t hour, uint8_t min, bool on) {
+    nvs.putUChar("alrm_h", hour);
+    nvs.putUChar("alrm_m", min);
+    nvs.putBool("alrm_on", on);
+}
