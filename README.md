@@ -14,7 +14,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 | Game | Players | Network | Description |
 |------|---------|---------|-------------|
-| Snake | 1P | - | D-pad controlled, progressive speed |
+| Battleship | 1-2P | Yes | Place ships on 8x8 grid, fire to sink opponent's fleet, vs CPU/local/network |
 | Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
 | Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
@@ -102,7 +102,7 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
 │   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
-│   └── games/              # Snake, Tic-Tac-Toe, Memory, Pong, Connect 4,
+│   └── games/              # Battleship, Tic-Tac-Toe, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
 │                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary
 ```

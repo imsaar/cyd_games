@@ -1,7 +1,7 @@
 #include "screen_manager.h"
 #include "screen_menu.h"
 #include "screen_settings.h"
-#include "../games/snake/snake.h"
+#include "../games/battleship/battleship.h"
 #include "../games/tictactoe/tictactoe.h"
 #include "../games/memory_match/memory_match.h"
 #include "../games/pong/pong.h"
@@ -19,7 +19,7 @@ static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
 
 // Static game instances (avoid heap fragmentation)
-static Snake       snake_game;
+static Battleship  battleship_game;
 static TicTacToe   ttt_game;
 static MemoryMatch memory_game;
 static Pong        pong_game;
@@ -40,12 +40,12 @@ void screen_manager_init() {
     screens[SCREEN_SETTINGS] = {
         "Settings", screen_settings_create, screen_settings_update, nullptr, false, 0
     };
-    screens[SCREEN_SNAKE] = {
-        snake_game.name(),
-        []() -> lv_obj_t* { return snake_game.createScreen(); },
-        []() { snake_game.update(); },
-        []() { snake_game.destroy(); },
-        true, snake_game.maxPlayers()
+    screens[SCREEN_BATTLESHIP] = {
+        battleship_game.name(),
+        []() -> lv_obj_t* { return battleship_game.createScreen(); },
+        []() { battleship_game.update(); },
+        []() { battleship_game.destroy(); },
+        true, battleship_game.maxPlayers()
     };
     screens[SCREEN_TICTACTOE] = {
         ttt_game.name(),
