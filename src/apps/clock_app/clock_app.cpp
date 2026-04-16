@@ -270,31 +270,37 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     int cx = 150, y = 8;
 
-    // HH
+    // HH : MM : SS — 72pt digits, small colons
+    // "00" at 72pt ≈ 56px. Layout across 300px panel:
+    // x: 20  76 88  144 156  212
+    //    HH  :  MM   :  SS
+    int dx = 20;
     lbl_timer_hh_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_hh_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_hh_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_hh_, cx - 130, y);
+    lv_obj_set_pos(lbl_timer_hh_, dx, y);
 
     lv_obj_t* c1 = lv_label_create(timer_set_panel_);
-    lv_label_set_text(c1, ":"); lv_obj_set_style_text_font(c1, &font_digit_72, 0);
-    lv_obj_set_style_text_color(c1, UI_COLOR_DIM, 0); lv_obj_set_pos(c1, cx - 68, y);
+    lv_label_set_text(c1, ":");
+    lv_obj_set_style_text_font(c1, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(c1, UI_COLOR_DIM, 0);
+    lv_obj_set_pos(c1, dx + 60, y + 10);
 
-    // MM
     lbl_timer_mm_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_mm_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_mm_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_mm_, cx - 46, y);
+    lv_obj_set_pos(lbl_timer_mm_, dx + 78, y);
 
     lv_obj_t* c2 = lv_label_create(timer_set_panel_);
-    lv_label_set_text(c2, ":"); lv_obj_set_style_text_font(c2, &font_digit_72, 0);
-    lv_obj_set_style_text_color(c2, UI_COLOR_DIM, 0); lv_obj_set_pos(c2, cx + 16, y);
+    lv_label_set_text(c2, ":");
+    lv_obj_set_style_text_font(c2, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(c2, UI_COLOR_DIM, 0);
+    lv_obj_set_pos(c2, dx + 138, y + 10);
 
-    // SS
     lbl_timer_ss_ = lv_label_create(timer_set_panel_);
     lv_obj_set_style_text_font(lbl_timer_ss_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_ss_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_pos(lbl_timer_ss_, cx + 38, y);
+    lv_obj_set_pos(lbl_timer_ss_, dx + 156, y);
 
     y += 60;
 
@@ -341,11 +347,11 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     // Massive countdown — 96pt custom font
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
-    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_96, 0);
+    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_72, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
-    lv_obj_set_style_text_align(lbl_timer_countdown_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_timer_countdown_, 310);
-    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_TOP_MID, 0, 10);
+    lv_label_set_long_mode(lbl_timer_countdown_, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(lbl_timer_countdown_, 320);
+    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_TOP_MID, 0, 16);
     lv_label_set_text(lbl_timer_countdown_, "00:00");
 
     lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 280, 40);
