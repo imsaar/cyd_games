@@ -110,74 +110,75 @@ static const char* hijri_month_names[] = {
 // ══════════════════════════════════════════
 
 static lv_obj_t* lbl_ampm_ = nullptr;
+static lv_obj_t* lbl_sec_g_ = nullptr;
 
 static void build_clock_tab(lv_obj_t* tab) {
-    // Layout: 320 x ~196 landscape
-    // Left: huge time (48pt) with seconds arc below
-    // Right: date, hijri, weather stacked
+    // Full 320x196 landscape layout
+    // ┌──────────────────────────────────────┐
+    // │         12:30          :45  PM       │  <- huge time, seconds, AM/PM
+    // │  Wednesday, Apr 15, 2026             │  <- date (full width, 20pt)
+    // │  21 Shawwal 1447 AH                  │  <- hijri (16pt amber)
+    // │  [sun icon] 62°F Cloudy   Seattle    │  <- weather bar at bottom
+    // └──────────────────────────────────────┘
 
-    // Big time — takes the top-left bulk of the screen
+    // ── Row 1: Time (dominates the screen) ──
     lbl_clock_time_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
     lv_obj_set_style_text_font(lbl_clock_time_, &lv_font_montserrat_48, 0);
-    lv_obj_set_pos(lbl_clock_time_, 8, 8);
+    lv_obj_set_pos(lbl_clock_time_, 10, 4);
     lv_label_set_text(lbl_clock_time_, "--:--");
 
-    // AM/PM next to time
+    // Seconds (smaller, right of time)
+    lbl_sec_g_ = lv_label_create(tab);
+    lv_obj_set_style_text_color(lbl_sec_g_, lv_color_hex(0x336655), 0);
+    lv_obj_set_style_text_font(lbl_sec_g_, &lv_font_montserrat_28, 0);
+    lv_obj_set_pos(lbl_sec_g_, 200, 14);
+    lv_label_set_text(lbl_sec_g_, "");
+
+    // AM/PM (right of seconds)
     lbl_ampm_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_ampm_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_20, 0);
-    lv_obj_set_pos(lbl_ampm_, 8, 60);
+    lv_obj_set_style_text_font(lbl_ampm_, &lv_font_montserrat_28, 0);
+    lv_obj_set_pos(lbl_ampm_, 260, 14);
     lv_label_set_text(lbl_ampm_, "");
 
-    // Seconds arc ring — small, bottom-left
+    // Seconds arc — thin bar under time spanning full width
     arc_sec_ = lv_arc_create(tab);
-    lv_obj_set_size(arc_sec_, 60, 60);
-    lv_obj_set_pos(arc_sec_, 60, 56);
-    lv_arc_set_rotation(arc_sec_, 270);
+    lv_obj_set_size(arc_sec_, 300, 300);
+    lv_obj_set_pos(arc_sec_, 10, -92);  // only bottom arc visible
+    lv_arc_set_rotation(arc_sec_, 180);
     lv_arc_set_range(arc_sec_, 0, 60);
     lv_arc_set_value(arc_sec_, 0);
-    lv_arc_set_bg_angles(arc_sec_, 0, 360);
-    lv_obj_set_style_arc_width(arc_sec_, 4, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x162040), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_sec_, 4, LV_PART_INDICATOR);
+    lv_arc_set_bg_angles(arc_sec_, 0, 180);
+    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x0a1a2a), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_sec_, 3, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc_sec_, lv_color_hex(0x4ecca3), LV_PART_INDICATOR);
     lv_obj_remove_style(arc_sec_, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_sec_, LV_OBJ_FLAG_CLICKABLE);
 
-    // Seconds number in the arc
-    static lv_obj_t* lbl_sec_ = nullptr;
-    lbl_sec_ = lv_label_create(tab);
-    lv_obj_set_style_text_color(lbl_sec_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_style_text_font(lbl_sec_, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_sec_, 80, 72);
-    lv_label_set_text(lbl_sec_, "");
-
-    // Right column starts at x=160
-    int rx = 160;
-
-    // Gregorian date
+    // ── Row 2: Gregorian date (full width, large) ──
     lbl_clock_date_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_date_, lv_color_hex(0x88bbdd), 0);
-    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_14, 0);
-    lv_obj_set_pos(lbl_clock_date_, rx, 6);
+    lv_obj_set_style_text_font(lbl_clock_date_, &lv_font_montserrat_20, 0);
+    lv_obj_set_pos(lbl_clock_date_, 10, 62);
     lv_label_set_text(lbl_clock_date_, "");
 
-    // Hijri date
+    // ── Row 3: Hijri date ──
     lbl_clock_hijri_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_hijri_, lv_color_hex(0xf0a500), 0);
-    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_12, 0);
-    lv_obj_set_pos(lbl_clock_hijri_, rx, 46);
+    lv_obj_set_style_text_font(lbl_clock_hijri_, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(lbl_clock_hijri_, 10, 88);
     lv_label_set_text(lbl_clock_hijri_, "");
 
-    // Weather icon + text
-    weather_icon_clock_ = weather_icon_create(tab, 28);
-    lv_obj_set_pos(weather_icon_clock_, rx, 76);
+    // ── Row 4: Weather bar at bottom ──
+    weather_icon_clock_ = weather_icon_create(tab, 32);
+    lv_obj_set_pos(weather_icon_clock_, 10, 118);
 
     lbl_weather_cur_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_weather_cur_, lv_color_hex(0x66aacc), 0);
-    lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_14, 0);
-    lv_obj_set_pos(lbl_weather_cur_, rx + 32, 82);
+    lv_obj_set_style_text_font(lbl_weather_cur_, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(lbl_weather_cur_, 48, 122);
     lv_label_set_text(lbl_weather_cur_, "");
 }
 
@@ -192,36 +193,23 @@ static void update_clock_tab() {
 
     if (arc_sec_) lv_arc_set_value(arc_sec_, t.tm_sec);
 
-    // Seconds number inside arc
-    lv_obj_t* tab = lv_obj_get_parent(lbl_clock_time_);
-    // sec label is child index 4 (time=0, ampm=1, arc=2, arc=3... actually find by position)
-    // Use a static pointer stored during build
-    static lv_obj_t* sec_lbl = nullptr;
-    if (!sec_lbl) {
-        // Find it — it's the label at pos (80,72)
-        int cnt = lv_obj_get_child_cnt(tab);
-        for (int i = 0; i < cnt; i++) {
-            lv_obj_t* c = lv_obj_get_child(tab, i);
-            if (lv_obj_get_x(c) == 80 && lv_obj_get_y(c) == 72) { sec_lbl = c; break; }
-        }
-    }
-    if (sec_lbl) {
+    if (lbl_sec_g_) {
         char sbuf[4];
-        snprintf(sbuf, sizeof(sbuf), "%02d", t.tm_sec);
-        lv_label_set_text(sec_lbl, sbuf);
+        snprintf(sbuf, sizeof(sbuf), ":%02d", t.tm_sec);
+        lv_label_set_text(lbl_sec_g_, sbuf);
     }
 
     static const char* days[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     static const char* months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
     char dbuf[32];
-    snprintf(dbuf, sizeof(dbuf), "%s\n%s %d, %d", days[t.tm_wday], months[t.tm_mon], t.tm_mday, 1900 + t.tm_year);
+    snprintf(dbuf, sizeof(dbuf), "%s, %s %d, %d", days[t.tm_wday], months[t.tm_mon], t.tm_mday, 1900 + t.tm_year);
     if (lbl_clock_date_) lv_label_set_text(lbl_clock_date_, dbuf);
 
     int hy, hm, hd;
     gregorian_to_hijri(1900 + t.tm_year, t.tm_mon + 1, t.tm_mday, &hy, &hm, &hd);
     char hbuf[32];
     if (hm >= 1 && hm <= 12)
-        snprintf(hbuf, sizeof(hbuf), "%d %s\n%d AH", hd, hijri_month_names[hm - 1], hy);
+        snprintf(hbuf, sizeof(hbuf), "%d %s %d AH", hd, hijri_month_names[hm - 1], hy);
     else
         hbuf[0] = '\0';
     if (lbl_clock_hijri_) lv_label_set_text(lbl_clock_hijri_, hbuf);
@@ -348,14 +336,25 @@ static void build_timer_tab(lv_obj_t* tab) {
     lv_obj_clear_flag(timer_run_panel_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(timer_run_panel_, LV_OBJ_FLAG_HIDDEN);
 
+    // Large countdown — 48pt is our max font, fill the space
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
     lv_obj_set_style_text_font(lbl_timer_countdown_, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
     lv_obj_set_style_text_align(lbl_timer_countdown_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_set_width(lbl_timer_countdown_, 310);
+    lv_obj_align(lbl_timer_countdown_, LV_ALIGN_TOP_MID, 0, 10);
     lv_label_set_text(lbl_timer_countdown_, "00:00");
 
-    lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 280, 36);
+    // "Timer Running" subtitle
+    lv_obj_t* sub = lv_label_create(timer_run_panel_);
+    lv_label_set_text(sub, "Timer Running");
+    lv_obj_set_style_text_color(sub, lv_color_hex(0x663030), 0);
+    lv_obj_set_style_text_font(sub, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_align(sub, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(sub, 310);
+    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 66);
+
+    lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 280, 40);
     lv_obj_align(cancel, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_event_cb(cancel, [](lv_event_t*) {
         alert_state_cancel_timer();
@@ -562,24 +561,29 @@ static void build_alarm_tab(lv_obj_t* tab) {
 // ── Weather tab ──
 // ══════════════════════════════════════════
 
+static lv_obj_t* weather_icon_header_ = nullptr;
+
 static void build_weather_tab(lv_obj_t* tab) {
-    // Current weather header
+    // Current weather: icon + text header
+    weather_icon_header_ = weather_icon_create(tab, 36);
+    lv_obj_set_pos(weather_icon_header_, 6, 2);
+
     lbl_weather_status_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_weather_status_, lv_color_hex(0x4ecca3), 0);
     lv_obj_set_style_text_font(lbl_weather_status_, &lv_font_montserrat_20, 0);
-    lv_obj_set_pos(lbl_weather_status_, 8, 2);
+    lv_obj_set_pos(lbl_weather_status_, 48, 6);
     lv_label_set_text(lbl_weather_status_, "Seattle Weather");
 
-    // 7-day forecast rows with icons
+    // 7-day forecast rows with larger icons
     for (int i = 0; i < 7; i++) {
-        int y = 30 + i * 22;
-        weather_icons_fc_[i] = weather_icon_create(tab, 18);
+        int y = 42 + i * 22;
+        weather_icons_fc_[i] = weather_icon_create(tab, 20);
         lv_obj_set_pos(weather_icons_fc_[i], 6, y);
 
         lbl_weather_fc_[i] = lv_label_create(tab);
         lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_DIM, 0);
-        lv_obj_set_pos(lbl_weather_fc_[i], 28, y + 1);
+        lv_obj_set_pos(lbl_weather_fc_[i], 30, y + 2);
         lv_label_set_text(lbl_weather_fc_[i], "");
     }
 }
@@ -607,10 +611,12 @@ static void update_weather_tab() {
         return;
     }
 
+    if (weather_icon_header_)
+        weather_icon_set_code(weather_icon_header_, w->current_code);
+
     char hdr[48];
-    snprintf(hdr, sizeof(hdr), "%s Seattle  %.0f°F  %s",
-             weather_symbol(w->current_code), w->current_temp,
-             weather_code_str(w->current_code));
+    snprintf(hdr, sizeof(hdr), "Seattle  %.0f°F  %s",
+             w->current_temp, weather_code_str(w->current_code));
     if (lbl_weather_status_) {
         lv_label_set_text(lbl_weather_status_, hdr);
         // Color current temp
@@ -750,7 +756,7 @@ void clock_app_update() {
 
 void clock_app_destroy() {
     screen_ = nullptr; tabview_ = nullptr;
-    lbl_clock_time_ = nullptr; lbl_clock_date_ = nullptr; lbl_clock_hijri_ = nullptr; arc_sec_ = nullptr;
+    lbl_clock_time_ = nullptr; lbl_clock_date_ = nullptr; lbl_clock_hijri_ = nullptr; arc_sec_ = nullptr; lbl_sec_g_ = nullptr;
     lbl_timer_hh_ = nullptr; lbl_timer_mm_ = nullptr; lbl_timer_ss_ = nullptr;
     lbl_timer_countdown_ = nullptr; btn_timer_start_ = nullptr;
     timer_set_panel_ = nullptr; timer_run_panel_ = nullptr;
@@ -758,7 +764,7 @@ void clock_app_destroy() {
     lbl_alarm_hh_ = nullptr; lbl_alarm_mm_ = nullptr; lbl_alarm_ampm_ = nullptr;
     lbl_alarm_status_ = nullptr; btn_alarm_set_ = nullptr;
     lbl_weather_cur_ = nullptr; lbl_weather_status_ = nullptr;
-    weather_icon_clock_ = nullptr;
+    weather_icon_clock_ = nullptr; weather_icon_header_ = nullptr;
     memset(lbl_weather_fc_, 0, sizeof(lbl_weather_fc_));
     memset(weather_icons_fc_, 0, sizeof(weather_icons_fc_));
 }
