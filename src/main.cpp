@@ -60,7 +60,12 @@ void setup() {
 
     // UI
     screen_manager_init();
-    screen_manager_switch(SCREEN_MENU);
+    // First-run: launch WiFi setup if no credentials are stored
+    if (!wifi_has_credentials()) {
+        screen_manager_switch(SCREEN_WIFI);
+    } else {
+        screen_manager_switch(SCREEN_MENU);
+    }
 
     sound_startup();
 

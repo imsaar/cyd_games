@@ -1,6 +1,7 @@
 #include "screen_manager.h"
 #include "screen_menu.h"
 #include "screen_settings.h"
+#include "screen_wifi.h"
 #include "../games/battleship/battleship.h"
 #include "../apps/clock_app/clock_app.h"
 #include "../games/memory_match/memory_match.h"
@@ -39,6 +40,9 @@ void screen_manager_init() {
     };
     screens[SCREEN_SETTINGS] = {
         "Settings", screen_settings_create, screen_settings_update, nullptr, false, 0
+    };
+    screens[SCREEN_WIFI] = {
+        "WiFi", screen_wifi_create, screen_wifi_update, screen_wifi_destroy, false, 0
     };
     screens[SCREEN_BATTLESHIP] = {
         battleship_game.name(),

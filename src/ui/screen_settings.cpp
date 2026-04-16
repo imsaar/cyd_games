@@ -316,6 +316,24 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_pos(lbl_wifi_status, 165, 6);
     update_wifi_status();
 
+    // ── WiFi setup (SSID/password) ──
+    lv_obj_t* wcfg_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(wcfg_row);
+    lv_obj_set_size(wcfg_row, 300, 30);
+    lv_obj_clear_flag(wcfg_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* wcfg_label = lv_label_create(wcfg_row);
+    lv_label_set_text(wcfg_label, "WiFi Setup");
+    lv_obj_set_style_text_color(wcfg_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(wcfg_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(wcfg_label, 0, 6);
+
+    lv_obj_t* btn_wcfg = ui_create_btn(wcfg_row, "SSID/Pass " LV_SYMBOL_RIGHT, 130, 26);
+    lv_obj_set_pos(btn_wcfg, 110, 2);
+    lv_obj_add_event_cb(btn_wcfg, [](lv_event_t*) {
+        screen_manager_switch(SCREEN_WIFI);
+    }, LV_EVENT_CLICKED, NULL);
+
     // ── Info text ──
     lbl_info = lv_label_create(cont);
     lv_obj_set_style_text_color(lbl_info, UI_COLOR_TEXT, 0);

@@ -44,3 +44,27 @@ void    prefs_set_alarm(uint8_t hour, uint8_t min, bool on) {
     nvs.putUChar("alrm_m", min);
     nvs.putBool("alrm_on", on);
 }
+
+void prefs_get_wifi_ssid(char* buf, size_t len) {
+    String s = nvs.getString("wifi_ssid", "");
+    strncpy(buf, s.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
+
+void prefs_set_wifi_ssid(const char* ssid) {
+    nvs.putString("wifi_ssid", ssid);
+}
+
+void prefs_get_wifi_pass(char* buf, size_t len) {
+    String s = nvs.getString("wifi_pass", "");
+    strncpy(buf, s.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
+
+void prefs_set_wifi_pass(const char* pass) {
+    nvs.putString("wifi_pass", pass);
+}
+
+bool prefs_wifi_configured() {
+    return nvs.getString("wifi_ssid", "").length() > 0;
+}
