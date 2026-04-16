@@ -572,14 +572,14 @@ static void build_weather_tab(lv_obj_t* tab) {
     // Columns: icon@4, day@28, temps@90, condition@210
     for (int i = 0; i < 7; i++) {
         int y = 40 + i * 22;
-        weather_icons_fc_[i] = weather_icon_create(tab, 20);
-        lv_obj_set_pos(weather_icons_fc_[i], 4, y);
+        weather_icons_fc_[i] = weather_icon_create(tab, 28);
+        lv_obj_set_pos(weather_icons_fc_[i], 0, y - 3);
 
         // Day name column (fixed width)
         lbl_weather_fc_[i] = lv_label_create(tab);
         lv_obj_set_style_text_font(lbl_weather_fc_[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_weather_fc_[i], UI_COLOR_TEXT, 0);
-        lv_obj_set_pos(lbl_weather_fc_[i], 28, y + 2);
+        lv_obj_set_pos(lbl_weather_fc_[i], 32, y + 2);
         lv_label_set_text(lbl_weather_fc_[i], "");
 
         // Temps column
