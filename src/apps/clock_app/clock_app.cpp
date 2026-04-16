@@ -159,7 +159,7 @@ static void build_clock_tab(lv_obj_t* tab) {
 
     // ── TOP-RIGHT: Seconds arc with colored quadrants ──
     // 4 arcs stacked, each covers 90° (15 seconds)
-    static const uint32_t q_colors[] = {0x4ecca3, 0x44aaff, 0xf0a500, 0xe94560};
+    static const uint32_t q_colors[] = {0x0088ff, 0x00cc44, 0xffcc00, 0xff2222};
     arc_sec_ = nullptr;  // not used as single arc
     for (int q = 0; q < 4; q++) {
         arc_q_[q] = lv_arc_create(tab);

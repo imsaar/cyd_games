@@ -36,6 +36,7 @@ void setup() {
     prefs_init();
     led_init();
     audio_init();
+    sound_init();
     alert_state_init();
 
     // Restore saved display preferences
