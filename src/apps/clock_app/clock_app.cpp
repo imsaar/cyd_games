@@ -134,11 +134,9 @@ static void build_clock_tab(lv_obj_t* tab) {
     // ── CENTER: huge time ──
     lbl_clock_time_ = lv_label_create(tab);
     lv_obj_set_style_text_color(lbl_clock_time_, lv_color_hex(0x4ecca3), 0);
-    lv_obj_set_style_text_font(lbl_clock_time_, &font_digit_96, 0);
-    lv_obj_set_style_text_align(lbl_clock_time_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_clock_time_, 260);
-    lv_obj_align(lbl_clock_time_, LV_ALIGN_CENTER, -10, -6);
-    lv_label_set_text(lbl_clock_time_, "");
+    lv_obj_set_style_text_font(lbl_clock_time_, &lv_font_montserrat_48, 0);
+    lv_obj_set_pos(lbl_clock_time_, 20, 30);
+    lv_label_set_text(lbl_clock_time_, "12:00");
 
     // AM/PM right of time center
     lbl_ampm_ = lv_label_create(tab);
@@ -341,21 +339,12 @@ static void build_timer_tab(lv_obj_t* tab) {
 
     // Massive countdown — 96pt custom font
     lbl_timer_countdown_ = lv_label_create(timer_run_panel_);
-    lv_obj_set_style_text_font(lbl_timer_countdown_, &font_digit_96, 0);
+    lv_obj_set_style_text_font(lbl_timer_countdown_, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(lbl_timer_countdown_, lv_color_hex(0xe94560), 0);
     lv_obj_set_style_text_align(lbl_timer_countdown_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_timer_countdown_, 310);
     lv_obj_align(lbl_timer_countdown_, LV_ALIGN_TOP_MID, 0, 10);
     lv_label_set_text(lbl_timer_countdown_, "00:00");
-
-    // "Timer Running" subtitle
-    lv_obj_t* sub = lv_label_create(timer_run_panel_);
-    lv_label_set_text(sub, "Timer Running");
-    lv_obj_set_style_text_color(sub, lv_color_hex(0x663030), 0);
-    lv_obj_set_style_text_font(sub, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_align(sub, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(sub, 310);
-    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 66);
 
     lv_obj_t* cancel = ui_create_btn(timer_run_panel_, LV_SYMBOL_CLOSE " Cancel", 280, 40);
     lv_obj_align(cancel, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -395,7 +384,7 @@ static uint32_t sw_elapsed() {
 
 static void build_stopwatch_tab(lv_obj_t* tab) {
     lbl_sw_time_ = lv_label_create(tab);
-    lv_obj_set_style_text_font(lbl_sw_time_, &font_digit_72, 0);
+    lv_obj_set_style_text_font(lbl_sw_time_, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(lbl_sw_time_, lv_color_hex(0x44aaff), 0);
     lv_obj_set_style_text_align(lbl_sw_time_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_sw_time_, 310);
