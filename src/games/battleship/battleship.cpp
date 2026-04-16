@@ -13,10 +13,10 @@ const int Battleship::ship_sizes_[NUM_SHIPS] = {5, 4, 3, 3, 2};
 // ── Grid drawing constants ──
 // Two 8x8 grids side by side on 320x240 screen
 // Left grid = "my board", Right grid = "enemy board"
-static const int CELL_SZ = 14;  // 14*8=112 px per grid
+static const int CELL_SZ = 18;  // 18*8=144 px per grid
 static const int GRID_W = CELL_SZ * Battleship::GRID;
-static const int GRID_GAP = 8;
-static const int GRID_Y = 36;
+static const int GRID_GAP = 6;
+static const int GRID_Y = 50;
 static const int GRID_L_X = (320 - GRID_W * 2 - GRID_GAP) / 2;
 static const int GRID_R_X = GRID_L_X + GRID_W + GRID_GAP;
 
@@ -150,7 +150,7 @@ void Battleship::update() {
             refresh_grids(0);  // Show CPU's shot on player's board
             if (all_sunk(0)) {
                 game_done_ = true;
-                show_gameover(1);  // CPU wins
+                delayed_gameover(1, row, col, 0);  // CPU wins, highlight on left grid
             } else {
                 my_turn_ = true;
                 if (lbl_status_) lv_label_set_text(lbl_status_, "Your turn - fire!");
@@ -193,6 +193,7 @@ void Battleship::reset_game() {
     ships_alive_[0] = ships_alive_[1] = NUM_SHIPS;
     place_ship_idx_ = 0;
     place_horiz_ = true;
+    selected_ship_ = -1;
     current_player_ = 0;
     my_turn_ = true;
     game_done_ = false;
@@ -260,6 +261,104 @@ Battleship::Cell Battleship::fire(int defender, int row, int col, int* sunk_ship
 
 bool Battleship::all_sunk(int player) {
     return ships_alive_[player] <= 0;
+}
+
+void Battleship::remove_ship(int player, int ship_idx) {
+    ships_[player][ship_idx].size = 0;
+    ships_placed_[player]--;
+}
+
+void Battleship::set_ship_pos(int player, int ship_idx, int row, int col, bool horiz) {
+    Ship& s = ships_[player][ship_idx];
+    s.size = ship_sizes_[ship_idx];
+    s.row = row; s.col = col; s.horiz = horiz; s.hits = 0;
+    if (ships_placed_[player] < NUM_SHIPS) ships_placed_[player] = 0;
+    // Recount placed ships
+    ships_placed_[player] = 0;
+    for (int i = 0; i < NUM_SHIPS; i++)
+        if (ships_[player][i].size > 0) ships_placed_[player]++;
+}
+
+int Battleship::find_ship_at(int player, int row, int col) {
+    for (int s = 0; s < NUM_SHIPS; s++) {
+        Ship& sh = ships_[player][s];
+        if (sh.size == 0) continue;
+        for (int i = 0; i < sh.size; i++) {
+            int r = sh.row + (sh.horiz ? 0 : i);
+            int c = sh.col + (sh.horiz ? i : 0);
+            if (r == row && c == col) return s;
+        }
+    }
+    return -1;
+}
+
+void Battleship::rebuild_board_from_ships(int player) {
+    memset(board_[player], 0, sizeof(board_[player]));
+    for (int s = 0; s < NUM_SHIPS; s++) {
+        Ship& sh = ships_[player][s];
+        if (sh.size == 0) continue;
+        for (int i = 0; i < sh.size; i++) {
+            int r = sh.row + (sh.horiz ? 0 : i);
+            int c = sh.col + (sh.horiz ? i : 0);
+            if (r >= 0 && r < GRID && c >= 0 && c < GRID)
+                board_[player][r * GRID + c] = SHIP;
+        }
+    }
+}
+
+bool Battleship::validate_placement(int player) {
+    if (ships_placed_[player] < NUM_SHIPS) return false;
+    int8_t count[GRID * GRID] = {};
+    for (int s = 0; s < NUM_SHIPS; s++) {
+        Ship& sh = ships_[player][s];
+        if (sh.size == 0) return false;
+        for (int i = 0; i < sh.size; i++) {
+            int r = sh.row + (sh.horiz ? 0 : i);
+            int c = sh.col + (sh.horiz ? i : 0);
+            if (r < 0 || r >= GRID || c < 0 || c >= GRID) return false;
+            count[r * GRID + c]++;
+            if (count[r * GRID + c] > 1) return false;
+        }
+    }
+    return true;
+}
+
+void Battleship::refresh_placement_grid(int player) {
+    // Build a count grid to detect overlaps
+    int8_t count[GRID * GRID] = {};
+    for (int s = 0; s < NUM_SHIPS; s++) {
+        Ship& sh = ships_[player][s];
+        if (sh.size == 0) continue;
+        for (int i = 0; i < sh.size; i++) {
+            int r = sh.row + (sh.horiz ? 0 : i);
+            int c = sh.col + (sh.horiz ? i : 0);
+            if (r >= 0 && r < GRID && c >= 0 && c < GRID)
+                count[r * GRID + c]++;
+        }
+    }
+    // Render cells
+    for (int i = 0; i < GRID * GRID; i++) {
+        if (!grid_objs_[0][i]) continue;
+        if (count[i] > 1)
+            lv_obj_set_style_bg_color(grid_objs_[0][i], lv_color_hex(0xff6600), 0);  // orange = overlap
+        else if (count[i] == 1)
+            lv_obj_set_style_bg_color(grid_objs_[0][i], lv_color_hex(0x666666), 0);  // gray = ship
+        else
+            lv_obj_set_style_bg_color(grid_objs_[0][i], lv_color_hex(0x1a2a4a), 0);  // water
+    }
+    // Highlight selected ship in blue
+    if (selected_ship_ >= 0) {
+        Ship& s = ships_[player][selected_ship_];
+        for (int i = 0; i < s.size; i++) {
+            int r = s.row + (s.horiz ? 0 : i);
+            int c = s.col + (s.horiz ? i : 0);
+            if (r >= 0 && r < GRID && c >= 0 && c < GRID) {
+                int idx = r * GRID + c;
+                if (grid_objs_[0][idx])
+                    lv_obj_set_style_bg_color(grid_objs_[0][idx], lv_color_hex(0x44aaff), 0);
+            }
+        }
+    }
 }
 
 // ── Cell drawing ──
@@ -430,9 +529,15 @@ lv_obj_t* Battleship::create_lobby() {
 
 // ── Ship placement ──
 
-static lv_obj_t* build_grid(lv_obj_t* parent, int x, int y,
+// Store absolute grid positions for reliable touch detection
+static int grid_abs_x_[2] = {};
+static int grid_abs_y_[2] = {};
+
+static lv_obj_t* build_grid(lv_obj_t* parent, int x, int y, int grid_idx,
                              lv_obj_t* objs[Battleship::GRID * Battleship::GRID],
                              lv_event_cb_t cb, void* user_data) {
+    grid_abs_x_[grid_idx] = x;
+    grid_abs_y_[grid_idx] = y;
     lv_obj_t* panel = lv_obj_create(parent);
     lv_obj_remove_style_all(panel);
     lv_obj_set_size(panel, GRID_W, GRID_W);
@@ -465,55 +570,113 @@ static lv_obj_t* build_grid(lv_obj_t* parent, int x, int y,
 
 void Battleship::place_grid_cb(lv_event_t* e) {
     if (!s_self || s_self->phase_ != PHASE_PLACE) return;
-    lv_obj_t* panel = lv_event_get_target(e);
     lv_point_t pt;
     lv_indev_t* indev = lv_indev_get_act();
     if (!indev) return;
     lv_indev_get_point(indev, &pt);
 
-    // Convert screen coords to grid coords
-    lv_coord_t px = lv_obj_get_x(panel);
-    lv_coord_t py = lv_obj_get_y(panel);
-    int col = (pt.x - px) / CELL_SZ;
-    int row = (pt.y - py) / CELL_SZ;
+    int col = (pt.x - grid_abs_x_[0]) / CELL_SZ;
+    int row = (pt.y - grid_abs_y_[0]) / CELL_SZ;
     if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
 
     int player = (s_self->mode_ == MODE_LOCAL) ? s_self->current_player_ : 0;
-    int si = s_self->place_ship_idx_;
-    if (si >= NUM_SHIPS) return;
 
-    if (s_self->can_place(player, si, row, col, s_self->place_horiz_)) {
-        s_self->do_place(player, si, row, col, s_self->place_horiz_);
-        sound_move();
-        // Update grid visuals
-        for (int i = 0; i < GRID * GRID; i++) {
-            if (s_self->grid_objs_[0][i])
-                s_self->draw_cell(s_self->grid_objs_[0][i],
-                                  s_self->board_[player][i], true);
-        }
-        s_self->place_ship_idx_++;
-        if (s_self->place_ship_idx_ < NUM_SHIPS) {
-            char buf[40];
-            snprintf(buf, sizeof(buf), "Place ship (%d)",
-                     ship_sizes_[s_self->place_ship_idx_]);
-            if (s_self->lbl_status_)
+    // If no ship selected, check if tapping an existing ship to pick it up
+    if (s_self->selected_ship_ < 0) {
+        int tapped = s_self->find_ship_at(player, row, col);
+        if (tapped >= 0) {
+            s_self->selected_ship_ = tapped;
+            s_self->place_horiz_ = s_self->ships_[player][tapped].horiz;
+            sound_move();
+            s_self->refresh_placement_grid(player);
+            if (s_self->lbl_status_) {
+                char buf[40];
+                snprintf(buf, sizeof(buf), "Ship (%d) selected",
+                         s_self->ships_[player][tapped].size);
                 lv_label_set_text(s_self->lbl_status_, buf);
-        } else {
-            if (s_self->lbl_status_)
-                lv_label_set_text(s_self->lbl_status_, "All placed! Tap Done");
+            }
+            return;
         }
+        // Place the next unplaced ship
+        int si = s_self->place_ship_idx_;
+        if (si >= NUM_SHIPS) return;
+        // Clamp so ship stays in bounds
+        int sz = ship_sizes_[si];
+        if (s_self->place_horiz_ && col + sz > GRID) col = GRID - sz;
+        if (!s_self->place_horiz_ && row + sz > GRID) row = GRID - sz;
+        if (row < 0) row = 0;
+        if (col < 0) col = 0;
+        s_self->set_ship_pos(player, si, row, col, s_self->place_horiz_);
+        sound_move();
+        s_self->place_ship_idx_++;
+    } else {
+        // Move selected ship to tapped location (allow overlap)
+        int si = s_self->selected_ship_;
+        int sz = ship_sizes_[si];
+        // Clamp to grid bounds
+        if (s_self->place_horiz_ && col + sz > GRID) col = GRID - sz;
+        if (!s_self->place_horiz_ && row + sz > GRID) row = GRID - sz;
+        if (row < 0) row = 0;
+        if (col < 0) col = 0;
+        s_self->set_ship_pos(player, si, row, col, s_self->place_horiz_);
+        sound_move();
+        s_self->selected_ship_ = -1;  // deselect after move
+    }
+
+    s_self->refresh_placement_grid(player);
+
+    if (s_self->place_ship_idx_ >= NUM_SHIPS && s_self->ships_placed_[player] >= NUM_SHIPS) {
+        if (s_self->lbl_status_)
+            lv_label_set_text(s_self->lbl_status_, "Tap Done or tap ships to edit");
+    } else if (s_self->place_ship_idx_ < NUM_SHIPS) {
+        char buf[40];
+        snprintf(buf, sizeof(buf), "Place ship (%d)",
+                 ship_sizes_[s_self->place_ship_idx_]);
+        if (s_self->lbl_status_)
+            lv_label_set_text(s_self->lbl_status_, buf);
     }
 }
 
 void Battleship::rotate_cb(lv_event_t*) {
     if (!s_self) return;
-    s_self->place_horiz_ = !s_self->place_horiz_;
+    int player = (s_self->mode_ == MODE_LOCAL) ? s_self->current_player_ : 0;
+
+    if (s_self->selected_ship_ >= 0) {
+        // Rotate selected ship clockwise, clamp to stay in bounds
+        int si = s_self->selected_ship_;
+        Ship& sh = s_self->ships_[player][si];
+        bool new_horiz = !sh.horiz;
+        int row = sh.row, col = sh.col;
+        int sz = sh.size;
+        // Clamp anchor so ship stays in grid
+        if (new_horiz && col + sz > GRID) col = GRID - sz;
+        if (!new_horiz && row + sz > GRID) row = GRID - sz;
+        if (row < 0) row = 0;
+        if (col < 0) col = 0;
+        s_self->set_ship_pos(player, si, row, col, new_horiz);
+        s_self->place_horiz_ = new_horiz;
+        sound_move();
+        s_self->refresh_placement_grid(player);
+    } else {
+        s_self->place_horiz_ = !s_self->place_horiz_;
+    }
 }
 
 void Battleship::done_place_cb(lv_event_t*) {
     if (!s_self) return;
     int player = (s_self->mode_ == MODE_LOCAL) ? s_self->current_player_ : 0;
-    if (s_self->ships_placed_[player] < NUM_SHIPS) return;  // not done yet
+    if (s_self->ships_placed_[player] < NUM_SHIPS) {
+        if (s_self->lbl_status_)
+            lv_label_set_text(s_self->lbl_status_, "Place all ships first!");
+        return;
+    }
+    if (!s_self->validate_placement(player)) {
+        if (s_self->lbl_status_)
+            lv_label_set_text(s_self->lbl_status_, "Fix overlaps first!");
+        return;
+    }
+    s_self->selected_ship_ = -1;
+    s_self->rebuild_board_from_ships(player);
 
     if (s_self->mode_ == MODE_LOCAL) {
         if (s_self->current_player_ == 0) {
@@ -582,8 +745,11 @@ lv_obj_t* Battleship::create_placement(int player) {
         snprintf(tbuf, sizeof(tbuf), "P%d - Place Ships", player + 1);
     else
         snprintf(tbuf, sizeof(tbuf), "Place Your Ships");
-    lv_obj_t* title = ui_create_title(scr, tbuf);
-    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 36, 4);
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, tbuf);
+    lv_obj_set_style_text_color(title, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 6);
 
     lbl_status_ = lv_label_create(scr);
     char sbuf[30];
@@ -591,12 +757,12 @@ lv_obj_t* Battleship::create_placement(int player) {
     lv_label_set_text(lbl_status_, sbuf);
     lv_obj_set_style_text_color(lbl_status_, UI_COLOR_DIM, 0);
     lv_obj_set_style_text_font(lbl_status_, &lv_font_montserrat_12, 0);
-    lv_obj_align(lbl_status_, LV_ALIGN_TOP_RIGHT, -6, 8);
+    lv_obj_align(lbl_status_, LV_ALIGN_TOP_MID, 0, 24);
 
     // Single grid centered for placement
     int cx = (320 - GRID_W) / 2;
     memset(grid_objs_, 0, sizeof(grid_objs_));
-    grid_panels_[0] = build_grid(scr, cx, GRID_Y, grid_objs_[0],
+    grid_panels_[0] = build_grid(scr, cx, GRID_Y, 0, grid_objs_[0],
                                   place_grid_cb, this);
 
     // Show already-placed ships
@@ -662,17 +828,14 @@ void Battleship::battle_grid_cb(lv_event_t* e) {
     if (!s_self || s_self->game_done_) return;
     if (s_self->phase_ != PHASE_BATTLE) return;
 
-    // Only the right grid (enemy board) is clickable
-    lv_obj_t* panel = lv_event_get_target(e);
+    // Only the right grid (enemy board, grid index 1) is clickable
     lv_point_t pt;
     lv_indev_t* indev = lv_indev_get_act();
     if (!indev) return;
     lv_indev_get_point(indev, &pt);
 
-    lv_coord_t px = lv_obj_get_x(panel);
-    lv_coord_t py = lv_obj_get_y(panel);
-    int col = (pt.x - px) / CELL_SZ;
-    int row = (pt.y - py) / CELL_SZ;
+    int col = (pt.x - grid_abs_x_[1]) / CELL_SZ;
+    int row = (pt.y - grid_abs_y_[1]) / CELL_SZ;
     if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
 
     int attacker, defender;
@@ -706,7 +869,7 @@ void Battleship::battle_grid_cb(lv_event_t* e) {
             s_self->send_json(buf);
         }
         int winner = (s_self->mode_ == MODE_LOCAL) ? attacker : 0;
-        s_self->show_gameover(winner);
+        s_self->delayed_gameover(winner, row, col, 1);  // highlight on right grid (enemy)
         return;
     }
 
@@ -760,18 +923,18 @@ lv_obj_t* Battleship::create_battle(int attacker) {
     lv_obj_t* scr = ui_create_screen();
     ui_create_back_btn(scr);
 
-    // Labels
+    // Labels above grids (clear of back button)
     lv_obj_t* my_lbl = lv_label_create(scr);
-    lv_label_set_text(my_lbl, "Your Board");
+    lv_label_set_text(my_lbl, "Yours");
     lv_obj_set_style_text_color(my_lbl, UI_COLOR_DIM, 0);
     lv_obj_set_style_text_font(my_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_set_pos(my_lbl, GRID_L_X, GRID_Y - 14);
+    lv_obj_set_pos(my_lbl, GRID_L_X + GRID_W / 2 - 16, GRID_Y - 16);
 
     lv_obj_t* en_lbl = lv_label_create(scr);
-    lv_label_set_text(en_lbl, "Enemy Board");
+    lv_label_set_text(en_lbl, "Enemy");
     lv_obj_set_style_text_color(en_lbl, UI_COLOR_ACCENT, 0);
     lv_obj_set_style_text_font(en_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_set_pos(en_lbl, GRID_R_X, GRID_Y - 14);
+    lv_obj_set_pos(en_lbl, GRID_R_X + GRID_W / 2 - 18, GRID_Y - 16);
 
     lbl_status_ = lv_label_create(scr);
     lv_obj_set_style_text_color(lbl_status_, UI_COLOR_TEXT, 0);
@@ -790,10 +953,10 @@ lv_obj_t* Battleship::create_battle(int attacker) {
 
     // Left grid: own board (no click)
     memset(grid_objs_, 0, sizeof(grid_objs_));
-    grid_panels_[0] = build_grid(scr, GRID_L_X, GRID_Y, grid_objs_[0],
+    grid_panels_[0] = build_grid(scr, GRID_L_X, GRID_Y, 0, grid_objs_[0],
                                   nullptr, nullptr);
     // Right grid: enemy board (clickable)
-    grid_panels_[1] = build_grid(scr, GRID_R_X, GRID_Y, grid_objs_[1],
+    grid_panels_[1] = build_grid(scr, GRID_R_X, GRID_Y, 1, grid_objs_[1],
                                   battle_grid_cb, this);
 
     refresh_grids(attacker);
@@ -813,6 +976,29 @@ lv_obj_t* Battleship::create_battle(int attacker) {
 
 // ── Game Over ──
 
+static int pending_winner_ = 0;
+
+void Battleship::delayed_gameover(int winner, int hit_row, int hit_col, int grid_side) {
+    // Highlight the winning cell with a flashing bright color
+    int idx = hit_row * GRID + hit_col;
+    if (grid_objs_[grid_side][idx]) {
+        lv_obj_set_style_bg_color(grid_objs_[grid_side][idx], lv_color_hex(0xffff00), 0);  // yellow flash
+    }
+    if (lbl_status_) {
+        lv_label_set_text(lbl_status_, winner == 0 ? "Final blow!" : "You've been sunk!");
+    }
+
+    // Play the sound immediately
+    if (winner == 0) sound_win(); else sound_lose();
+
+    // Show gameover overlay after 2 seconds
+    pending_winner_ = winner;
+    lv_timer_create([](lv_timer_t* t) {
+        lv_timer_del(t);
+        if (s_self) s_self->show_gameover(pending_winner_);
+    }, 2000, NULL);
+}
+
 void Battleship::show_gameover(int winner) {
     phase_ = PHASE_GAMEOVER;
 
@@ -827,8 +1013,6 @@ void Battleship::show_gameover(int winner) {
         is_win = (winner == 0);
         text = is_win ? "You Win!" : "You Lose!";
     }
-
-    if (is_win) sound_win(); else sound_lose();
 
     lv_color_t color = is_win ? UI_COLOR_SUCCESS : UI_COLOR_ACCENT;
     lv_obj_t* overlay = lv_obj_create(screen_);
@@ -910,7 +1094,9 @@ void Battleship::onNetworkData(const char* json) {
 
         if (all_sunk(0)) {
             game_done_ = true;
-            show_gameover(1);  // we lost
+            // Refresh to show the hit, then delayed gameover
+            if (grid_objs_[0][0]) refresh_grids(0);
+            delayed_gameover(1, row, col, 0);  // we lost, highlight on left grid (ours)
             return;
         }
 
@@ -955,7 +1141,7 @@ void Battleship::onNetworkData(const char* json) {
 
         if (all_sunk(1)) {
             game_done_ = true;
-            show_gameover(0);  // we won
+            delayed_gameover(0, row, col, 1);  // we won, highlight on right grid (enemy)
             return;
         }
 

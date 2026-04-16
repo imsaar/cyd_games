@@ -47,6 +47,15 @@ private:
     // Current placement state
     int place_ship_idx_ = 0;
     bool place_horiz_ = true;
+    int selected_ship_ = -1;  // index of selected placed ship (-1 = none)
+
+    void remove_ship(int player, int ship_idx);
+    int  find_ship_at(int player, int row, int col);
+    void highlight_ship(int player, int ship_idx);
+    void refresh_placement_grid(int player);
+    bool validate_placement(int player);
+    void rebuild_board_from_ships(int player);
+    void set_ship_pos(int player, int ship_idx, int row, int col, bool horiz);
 
     // Game state
     Mode mode_ = MODE_SELECT;
@@ -79,6 +88,7 @@ private:
     lv_obj_t* create_handoff(int next_player);
     lv_obj_t* create_battle(int attacker);
     void show_gameover(int winner);
+    void delayed_gameover(int winner, int hit_row, int hit_col, int grid_side);
 
     // Helpers
     void reset_game();

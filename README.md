@@ -14,7 +14,7 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 | Game | Players | Network | Description |
 |------|---------|---------|-------------|
-| Battleship | 1-2P | Yes | Place ships on 8x8 grid, fire to sink opponent's fleet, vs CPU/local/network |
+| Battleship | 1-2P | Yes | 8x8 grid, drag/rotate ships, fire to sink fleet, vs CPU (hunt/target AI)/local/network |
 | Tic-Tac-Toe | 2P | Yes | Classic 3x3 grid |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
 | Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |

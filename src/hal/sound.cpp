@@ -25,12 +25,15 @@ static const Note melody_opponent[] = {
     {800, 40}
 };
 
+// Happy trombone fanfare: charge! then triumphant resolve
 static const Note melody_win[] = {
-    {523, 100}, {659, 100}, {784, 100}, {1047, 250}
+    {392, 100}, {523, 100}, {659, 100}, {784, 150},
+    {0, 80},    {784, 100}, {880, 100}, {1047, 300}
 };
 
+// Sad trombone: wah wah wah wahhh
 static const Note melody_lose[] = {
-    {392, 150}, {330, 150}, {262, 300}
+    {494, 250}, {466, 250}, {440, 250}, {349, 500}
 };
 
 static const Note melody_gameover[] = {
