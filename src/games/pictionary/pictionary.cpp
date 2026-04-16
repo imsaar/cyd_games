@@ -529,8 +529,8 @@ void Pictionary::onNetworkData(const char* json) {
         for (int i = 0; i < 4 && i < (int)ca.size(); i++) choices_[i] = ca[i];
         round_ = doc["r"] | 0;
         drawer_ = doc["d"] | 0;
-        score_[0] = doc["s0"] | 0;
-        score_[1] = doc["s1"] | 0;
+        score_[0] = doc["s0"] | score_[0];
+        score_[1] = doc["s1"] | score_[1];
 
         // Determine role: host=0, guest=1. drawer_ says who draws.
         is_drawer_ = (is_host_ ? drawer_ == 0 : drawer_ == 1);
