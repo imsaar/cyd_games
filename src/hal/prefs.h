@@ -9,6 +9,8 @@ bool     prefs_get_inverted();
 void     prefs_set_inverted(bool val);
 void     prefs_get_name(char* buf, size_t len);  // returns saved name or ""
 void     prefs_set_name(const char* name);
+bool     prefs_get_muted();
+void     prefs_set_muted(bool val);
 uint8_t  prefs_get_alarm_hour();
 uint8_t  prefs_get_alarm_min();
 bool     prefs_get_alarm_on();

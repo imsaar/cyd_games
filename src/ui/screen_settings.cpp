@@ -4,6 +4,7 @@
 #include "../hal/backlight.h"
 #include "../hal/prefs.h"
 #include "../hal/display.h"
+#include "../hal/sound.h"
 #include "../net/wifi_manager.h"
 #include "../net/discovery.h"
 #include <WiFi.h>
@@ -259,6 +260,36 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_CARD, 0);
     lv_obj_set_style_bg_color(sw_invert, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_invert, invert_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // ── Sound toggle ──
+    lv_obj_t* snd_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(snd_row);
+    lv_obj_set_size(snd_row, 300, 30);
+    lv_obj_clear_flag(snd_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* snd_label = lv_label_create(snd_row);
+    lv_label_set_text(snd_label, "Sound");
+    lv_obj_set_style_text_color(snd_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(snd_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(snd_label, 0, 6);
+
+    lv_obj_t* sw_sound = lv_switch_create(snd_row);
+    lv_obj_set_pos(sw_sound, 110, 2);
+    lv_obj_set_size(sw_sound, 40, 22);
+    if (!sound_get_muted()) lv_obj_add_state(sw_sound, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw_sound, UI_COLOR_CARD, 0);
+    lv_obj_set_style_bg_color(sw_sound, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_sound, [](lv_event_t* e) {
+        lv_obj_t* sw = lv_event_get_target(e);
+        bool on = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        sound_set_muted(!on);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t* snd_status = lv_label_create(snd_row);
+    lv_label_set_text(snd_status, sound_get_muted() ? "Muted" : "On");
+    lv_obj_set_style_text_color(snd_status, sound_get_muted() ? UI_COLOR_DIM : UI_COLOR_SUCCESS, 0);
+    lv_obj_set_style_text_font(snd_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(snd_status, 165, 6);
 
     // ── WiFi toggle ──
     lv_obj_t* wifi_row = lv_obj_create(cont);

@@ -33,6 +33,9 @@ void prefs_set_name(const char* name) {
     nvs.putString("name", name);
 }
 
+bool prefs_get_muted()    { return nvs.getBool("muted", false); }
+void prefs_set_muted(bool val) { nvs.putBool("muted", val); }
+
 uint8_t prefs_get_alarm_hour() { return nvs.getUChar("alrm_h", 7); }
 uint8_t prefs_get_alarm_min()  { return nvs.getUChar("alrm_m", 0); }
 bool    prefs_get_alarm_on()   { return nvs.getBool("alrm_on", false); }

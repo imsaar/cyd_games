@@ -2,6 +2,8 @@
 
 void sound_init();
 void sound_update();      // call from loop() to drive non-blocking melodies
+bool sound_get_muted();
+void sound_set_muted(bool muted);
 
 void sound_startup();
 void sound_move();

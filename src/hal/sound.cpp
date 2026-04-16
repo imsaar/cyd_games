@@ -1,5 +1,6 @@
 #include "sound.h"
 #include "audio.h"
+#include "prefs.h"
 #include <Arduino.h>
 
 // Non-blocking melody player
@@ -50,8 +51,10 @@ static const Note melody_alarm[] = {
 };
 
 static bool repeating_ = false;
+static bool muted_ = false;
 
 static void play(const Note* notes, int len, bool repeat = false) {
+    if (muted_ && !repeat) return;  // allow alarm even when muted (repeat=true)
     // If a move beep interrupts a longer melody, ignore it
     if (playing_ && len == 1 && melody_len_ > 1 && !repeat) return;
 
@@ -68,6 +71,14 @@ static void play(const Note* notes, int len, bool repeat = false) {
 
 void sound_init() {
     // audio_init() already sets up LEDC channel 6
+    muted_ = prefs_get_muted();
+}
+
+bool sound_get_muted() { return muted_; }
+void sound_set_muted(bool muted) {
+    muted_ = muted;
+    prefs_set_muted(muted);
+    if (muted) { ledcWriteTone(6, 0); playing_ = false; repeating_ = false; }
 }
 
 void sound_update() {
