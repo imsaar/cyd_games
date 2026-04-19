@@ -37,8 +37,8 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
 - **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
 - **Sound Effects** — Piezo buzzer feedback for moves, opponent moves, wins, losses, and startup
-- **Persistent Settings** — Brightness, display inversion, and device name saved to NVS across power cycles
-- **Settings Screen** — Device name editor, brightness slider, display inversion toggle, WiFi on/off switch, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
+- **Persistent Settings** — Brightness, dark mode, sound, and device name saved to NVS across power cycles
+- **Settings Screen** — Device name editor, brightness slider, Dark Mode toggle, Sound on/off, WiFi on/off switch, IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
 ## Build & Flash
 

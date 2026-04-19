@@ -8,9 +8,12 @@ IP="${1:?Usage: $0 <IP> [firmware.bin]}"
 ENV="esp32-2432S028"
 BIN="${2:-.pio/build/${ENV}/firmware.bin}"
 
+echo "Building firmware..."
+pio run -e "$ENV" || exit 1
+
 if [ ! -f "$BIN" ]; then
-    echo "Building firmware..."
-    pio run -e "$ENV" || exit 1
+    echo "Error: build succeeded but $BIN missing"
+    exit 1
 fi
 
 echo "Starting OTA to $IP..."

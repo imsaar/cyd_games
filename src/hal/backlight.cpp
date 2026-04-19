@@ -5,7 +5,7 @@
 #define BL_CH  7  // LEDC channel for backlight
 
 void backlight_init() {
-    ledcSetup(BL_CH, 5000, 8);
+    ledcSetup(BL_CH, 20000, 8);
     ledcAttachPin(TFT_BL_PIN, BL_CH);
     ledcWrite(BL_CH, 255);  // Full brightness
 }

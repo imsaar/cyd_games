@@ -14,7 +14,7 @@
 static lv_obj_t* lbl_info = nullptr;
 static lv_obj_t* slider_bl = nullptr;
 static lv_obj_t* lbl_bl_val = nullptr;
-static lv_obj_t* sw_invert = nullptr;
+static lv_obj_t* sw_darkmode = nullptr;
 
 static void update_info_text() {
     if (!lbl_info) return;
@@ -61,9 +61,11 @@ static void brightness_cb(lv_event_t* e) {
     }
 }
 
-static void invert_cb(lv_event_t* e) {
+static void darkmode_cb(lv_event_t* e) {
     lv_obj_t* sw = lv_event_get_target(e);
-    bool inverted = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    bool dark = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    // On this unit, dark bg requires the panel inverted.
+    bool inverted = dark;
     display_set_inverted(inverted);
     prefs_set_inverted(inverted);
 }
@@ -241,25 +243,25 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_style_text_font(lbl_bl_val, &lv_font_montserrat_12, 0);
     lv_obj_set_pos(lbl_bl_val, 250, 8);
 
-    // ── Invert display toggle ──
-    lv_obj_t* inv_row = lv_obj_create(cont);
-    lv_obj_remove_style_all(inv_row);
-    lv_obj_set_size(inv_row, 300, 30);
-    lv_obj_clear_flag(inv_row, LV_OBJ_FLAG_SCROLLABLE);
+    // ── Dark Mode toggle (checked = dark bg; unchecked = inverted/light) ──
+    lv_obj_t* dm_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(dm_row);
+    lv_obj_set_size(dm_row, 300, 30);
+    lv_obj_clear_flag(dm_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t* inv_label = lv_label_create(inv_row);
-    lv_label_set_text(inv_label, "Invert Colors");
-    lv_obj_set_style_text_color(inv_label, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(inv_label, &lv_font_montserrat_12, 0);
-    lv_obj_set_pos(inv_label, 0, 6);
+    lv_obj_t* dm_label = lv_label_create(dm_row);
+    lv_label_set_text(dm_label, "Dark Mode");
+    lv_obj_set_style_text_color(dm_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(dm_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(dm_label, 0, 6);
 
-    sw_invert = lv_switch_create(inv_row);
-    lv_obj_set_pos(sw_invert, 110, 2);
-    lv_obj_set_size(sw_invert, 40, 22);
-    if (prefs_get_inverted()) lv_obj_add_state(sw_invert, LV_STATE_CHECKED);
-    lv_obj_set_style_bg_color(sw_invert, UI_COLOR_CARD, 0);
-    lv_obj_set_style_bg_color(sw_invert, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_add_event_cb(sw_invert, invert_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    sw_darkmode = lv_switch_create(dm_row);
+    lv_obj_set_pos(sw_darkmode, 110, 2);
+    lv_obj_set_size(sw_darkmode, 40, 22);
+    if (prefs_get_inverted()) lv_obj_add_state(sw_darkmode, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw_darkmode, UI_COLOR_CARD, 0);
+    lv_obj_set_style_bg_color(sw_darkmode, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_darkmode, darkmode_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     // ── Sound toggle ──
     lv_obj_t* snd_row = lv_obj_create(cont);
