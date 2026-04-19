@@ -95,6 +95,24 @@ lv_obj_t* Battleship::createScreen() {
 }
 
 void Battleship::update() {
+    // Heartbeat + pending-fire retry for network resync.
+    if (mode_ == MODE_NETWORK && !game_done_ &&
+        (phase_ == PHASE_BATTLE || phase_ == PHASE_WAIT)) {
+        if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
+            net_last_hb_ms_ = millis();
+            char hb[80];
+            snprintf(hb, sizeof(hb),
+                "{\"type\":\"move\",\"game\":\"battleship\",\"a\":\"hb\",\"mc\":%u}",
+                (unsigned)net_mc_);
+            send_json(hb);
+            // Attacker-side retry: if we have a fire that hasn't been
+            // acked (result still missing), resend the cached fire.
+            if (net_pending_mc_ > 0 && net_last_move_[0]) {
+                send_json(net_last_move_);
+            }
+        }
+    }
+
     // Lobby peer refresh
     if (phase_ == PHASE_LOBBY && lobby_list_) {
         static uint32_t last_refresh = 0;
@@ -199,6 +217,7 @@ void Battleship::reset_game() {
     game_done_ = false;
     cpu_pending_ = false;
     cpu_hunt_top_ = 0;
+    net_reset_sync();
 }
 
 bool Battleship::can_place(int player, int ship_idx, int row, int col, bool horiz) {
@@ -860,13 +879,16 @@ void Battleship::battle_grid_cb(lv_event_t* e) {
     if (s_self->all_sunk(defender)) {
         s_self->game_done_ = true;
         if (s_self->mode_ == MODE_NETWORK) {
-            // Send final shot to peer
-            StaticJsonDocument<128> doc;
+            // Send final shot to peer (game-ending — no need for ack/retry,
+            // but we tag it with mc for consistency).
+            s_self->net_pending_mc_ = s_self->net_mc_ + 1;
+            StaticJsonDocument<160> doc;
             doc["type"] = "move"; doc["game"] = "battleship";
-            doc["a"] = "fire"; doc["r"] = row; doc["c"] = col;
-            char buf[128];
-            serializeJson(doc, buf, sizeof(buf));
-            s_self->send_json(buf);
+            doc["a"] = "fire";
+            doc["r"] = row; doc["c"] = col;
+            doc["mc"] = s_self->net_pending_mc_;
+            serializeJson(doc, s_self->net_last_move_, sizeof(s_self->net_last_move_));
+            s_self->send_json(s_self->net_last_move_);
         }
         int winner = (s_self->mode_ == MODE_LOCAL) ? attacker : 0;
         s_self->delayed_gameover(winner, row, col, 1);  // highlight on right grid (enemy)
@@ -898,13 +920,17 @@ void Battleship::battle_grid_cb(lv_event_t* e) {
             s_self->screen_ = scr;
         }
     } else if (s_self->mode_ == MODE_NETWORK) {
-        // Send shot to opponent
-        StaticJsonDocument<128> doc;
+        // Send shot to opponent. We don't advance net_mc_ yet — it only
+        // advances when the result comes back. net_pending_mc_ tracks the
+        // in-flight fire so the heartbeat tick can retry it on loss.
+        s_self->net_pending_mc_ = s_self->net_mc_ + 1;
+        StaticJsonDocument<160> doc;
         doc["type"] = "move"; doc["game"] = "battleship";
-        doc["a"] = "fire"; doc["r"] = row; doc["c"] = col;
-        char buf[128];
-        serializeJson(doc, buf, sizeof(buf));
-        s_self->send_json(buf);
+        doc["a"] = "fire";
+        doc["r"] = row; doc["c"] = col;
+        doc["mc"] = s_self->net_pending_mc_;
+        serializeJson(doc, s_self->net_last_move_, sizeof(s_self->net_last_move_));
+        s_self->send_json(s_self->net_last_move_);
 
         if (result == HIT || result == SUNK) {
             if (s_self->lbl_status_)
@@ -1057,9 +1083,17 @@ void Battleship::onNetworkData(const char* json) {
     const char* action = doc["a"];
     if (!action) return;
 
+    // Heartbeat: if peer is behind our state, resend our last outgoing.
+    if (strcmp(action, "hb") == 0) {
+        uint32_t peer_mc = doc["mc"] | 0;
+        if (peer_mc < net_mc_ && net_last_move_[0]) {
+            send_json(net_last_move_);
+        }
+        return;
+    }
+
     if (strcmp(action, "ready") == 0) {
-        // Opponent has placed ships — mark as placed
-        // We use board_[1] as "opponent exists" flag
+        // Opponent has placed ships — mark as placed.
         ships_placed_[1] = NUM_SHIPS;
         ships_alive_[1] = NUM_SHIPS;
 
@@ -1073,6 +1107,16 @@ void Battleship::onNetworkData(const char* json) {
         }
     }
     else if (strcmp(action, "fire") == 0) {
+        uint32_t peer_mc = doc["mc"] | 0;
+
+        // Duplicate fire (attacker retried) — resend our cached result.
+        if (peer_mc != 0 && peer_mc == net_mc_ && net_last_move_[0]) {
+            send_json(net_last_move_);
+            return;
+        }
+        // Strict +1: reject gaps and out-of-order.
+        if (peer_mc != net_mc_ + 1) return;
+
         int row = doc["r"] | -1;
         int col = doc["c"] | -1;
         if (row < 0 || col < 0 || row >= GRID || col >= GRID) return;
@@ -1080,52 +1124,50 @@ void Battleship::onNetworkData(const char* json) {
         sound_opponent_move();
         int sunk = -1;
         Cell result = fire(0, row, col, &sunk);
+        net_mc_ = peer_mc;
 
-        // Send result back
-        StaticJsonDocument<128> rdoc;
+        // Send (and cache) result back with matching mc.
+        StaticJsonDocument<160> rdoc;
         rdoc["type"] = "move"; rdoc["game"] = "battleship";
         rdoc["a"] = "result";
         rdoc["r"] = row; rdoc["c"] = col;
         rdoc["hit"] = (result == HIT || result == SUNK);
         rdoc["sunk"] = (result == SUNK);
-        char buf[128];
-        serializeJson(rdoc, buf, sizeof(buf));
-        send_json(buf);
+        rdoc["mc"] = net_mc_;
+        serializeJson(rdoc, net_last_move_, sizeof(net_last_move_));
+        send_json(net_last_move_);
 
         if (all_sunk(0)) {
             game_done_ = true;
-            // Refresh to show the hit, then delayed gameover
             if (grid_objs_[0][0]) refresh_grids(0);
-            delayed_gameover(1, row, col, 0);  // we lost, highlight on left grid (ours)
+            delayed_gameover(1, row, col, 0);
             return;
         }
 
         if (result == HIT || result == SUNK) {
-            // Opponent gets another shot — stay in WAIT
             phase_ = PHASE_WAIT;
         } else {
-            // Our turn
             my_turn_ = true;
             phase_ = PHASE_BATTLE;
         }
 
-        // Refresh display if we're on battle screen
-        if (grid_objs_[0][0]) {
-            refresh_grids(0);
-        }
+        if (grid_objs_[0][0]) refresh_grids(0);
         if (lbl_status_) {
             lv_label_set_text(lbl_status_, my_turn_ ? "Your turn - fire!" : "Opponent's turn...");
         }
     }
     else if (strcmp(action, "result") == 0) {
+        uint32_t peer_mc = doc["mc"] | 0;
+        // Result must match our in-flight fire (net_pending_mc_).
+        if (peer_mc == 0 || peer_mc != net_pending_mc_) return;
+
         int row = doc["r"] | -1;
         int col = doc["c"] | -1;
         bool hit = doc["hit"] | false;
         bool sunk = doc["sunk"] | false;
-
         if (row < 0 || col < 0) return;
-        int idx = row * GRID + col;
 
+        int idx = row * GRID + col;
         if (sunk) {
             board_[1][idx] = SUNK;
             ships_alive_[1]--;
@@ -1135,18 +1177,19 @@ void Battleship::onNetworkData(const char* json) {
             board_[1][idx] = MISS;
         }
 
-        if (grid_objs_[1][0]) {
-            refresh_grids(0);
-        }
+        // Fire is now confirmed — advance mc, clear pending.
+        net_mc_ = peer_mc;
+        net_pending_mc_ = 0;
+
+        if (grid_objs_[1][0]) refresh_grids(0);
 
         if (all_sunk(1)) {
             game_done_ = true;
-            delayed_gameover(0, row, col, 1);  // we won, highlight on right grid (enemy)
+            delayed_gameover(0, row, col, 1);
             return;
         }
 
         if (hit || sunk) {
-            // We get another turn
             my_turn_ = true;
             phase_ = PHASE_BATTLE;
             if (lbl_status_)

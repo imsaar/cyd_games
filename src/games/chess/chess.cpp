@@ -166,6 +166,7 @@ void Chess::init_pieces() {
     w_rook_a_moved_ = w_rook_h_moved_ = false;
     b_rook_a_moved_ = b_rook_h_moved_ = false;
     en_passant_sq_ = -1;
+    net_reset_sync();
 }
 
 lv_obj_t* Chess::create_board() {
@@ -600,16 +601,17 @@ void Chess::show_result(const char* text, bool is_win) {
 // ── Networking ──
 
 void Chess::send_move(int from, int to) {
-    StaticJsonDocument<128> doc;
+    net_mc_++;
+    StaticJsonDocument<160> doc;
     doc["type"] = "move"; doc["game"] = "chess";
     doc["from"] = from; doc["to"] = to;
-    char buf[128];
-    serializeJson(doc, buf, sizeof(buf));
-    discovery_send_game_data(peer_ip_, buf);
+    doc["mc"] = net_mc_;
+    serializeJson(doc, net_last_move_, sizeof(net_last_move_));
+    discovery_send_game_data(peer_ip_, net_last_move_);
 }
 
 void Chess::onNetworkData(const char* json) {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<160> doc;
     if (deserializeJson(doc, json)) return;
     const char* g = doc["game"];
     if (!g || strcmp(g, "chess") != 0) return;
@@ -617,11 +619,23 @@ void Chess::onNetworkData(const char* json) {
         show_result("Opponent left", false);
         return;
     }
+
+    const char* action = doc["a"] | "";
+    uint32_t peer_mc = doc["mc"] | 0;
+    if (strcmp(action, "hb") == 0) {
+        if (peer_mc < net_mc_ && net_last_move_[0]) {
+            discovery_send_game_data(peer_ip_, net_last_move_);
+        }
+        return;
+    }
+    if (peer_mc != net_mc_ + 1) return;
+
     int from = doc["from"] | -1, to = doc["to"] | -1;
     if (from < 0 || to < 0) return;
 
     sound_opponent_move();
     do_move(from, to);
+    net_mc_ = peer_mc;
     clear_highlights();
     draw_board();
 
@@ -730,6 +744,17 @@ lv_obj_t* Chess::createScreen() {
 }
 
 void Chess::update() {
+    if (mode_ == MODE_NETWORK && !game_done_) {
+        if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
+            net_last_hb_ms_ = millis();
+            char hb[80];
+            snprintf(hb, sizeof(hb),
+                "{\"type\":\"move\",\"game\":\"chess\",\"a\":\"hb\",\"mc\":%u}",
+                (unsigned)net_mc_);
+            discovery_send_game_data(peer_ip_, hb);
+        }
+    }
+
     if (mode_ == MODE_CPU && !white_turn_ && !game_done_) {
         if (!cpu_pending_) {
             cpu_pending_ = true;

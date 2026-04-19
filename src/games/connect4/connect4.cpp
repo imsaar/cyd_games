@@ -165,6 +165,7 @@ void Connect4::reset_board() {
     for (int i = 0; i < COLS * ROWS; i++) board_[i] = EMPTY;
     current_ = RED;
     game_done_ = false;
+    net_reset_sync();
 }
 
 // Board origin stored for tap-to-column calculation
@@ -449,13 +450,14 @@ int Connect4::cpu_pick_col() {
 }
 
 void Connect4::send_move(int col) {
-    StaticJsonDocument<128> doc;
+    net_mc_++;
+    StaticJsonDocument<160> doc;
     doc["type"] = "move";
     doc["game"] = "connect4";
     doc["col"] = col;
-    char buf[128];
-    serializeJson(doc, buf, sizeof(buf));
-    discovery_send_game_data(peer_ip_, buf);
+    doc["mc"] = net_mc_;
+    serializeJson(doc, net_last_move_, sizeof(net_last_move_));
+    discovery_send_game_data(peer_ip_, net_last_move_);
 }
 
 // ── Lifecycle ──
@@ -469,6 +471,18 @@ lv_obj_t* Connect4::createScreen() {
 }
 
 void Connect4::update() {
+    // Heartbeat for network resync.
+    if (mode_ == MODE_NETWORK && !game_done_) {
+        if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
+            net_last_hb_ms_ = millis();
+            char hb[80];
+            snprintf(hb, sizeof(hb),
+                "{\"type\":\"move\",\"game\":\"connect4\",\"a\":\"hb\",\"mc\":%u}",
+                (unsigned)net_mc_);
+            discovery_send_game_data(peer_ip_, hb);
+        }
+    }
+
     // CPU move with a short delay for "thinking" feel
     if (mode_ == MODE_CPU && current_ == YELLOW && !game_done_) {
         if (!cpu_pending_) {
@@ -525,7 +539,7 @@ void Connect4::destroy() {
 }
 
 void Connect4::onNetworkData(const char* json) {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<160> doc;
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "connect4") != 0) return;
@@ -533,11 +547,29 @@ void Connect4::onNetworkData(const char* json) {
         show_result("Opponent left", false);
         return;
     }
+
+    const char* action = doc["a"] | "";
+    uint32_t peer_mc = doc["mc"] | 0;
+
+    if (strcmp(action, "hb") == 0) {
+        // Heartbeat: if peer is behind our state, resend our last move.
+        if (peer_mc < net_mc_ && net_last_move_[0]) {
+            discovery_send_game_data(peer_ip_, net_last_move_);
+        }
+        return;
+    }
+
+    // Strict +1 dedupe: only apply if this is the next expected move.
+    // Duplicates (peer_mc <= net_mc_) are dropped; out-of-order (gap) moves
+    // are also dropped and will be resent by the peer on its next heartbeat.
+    if (peer_mc != net_mc_ + 1) return;
+
     int col = doc["col"] | -1;
     if (col < 0 || col >= COLS) return;
 
     sound_opponent_move();
     drop_disc(col);
+    net_mc_ = peer_mc;
     if (!game_done_) {
         my_turn_ = true;
         update_status();

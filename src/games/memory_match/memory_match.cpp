@@ -374,14 +374,15 @@ void MemoryMatch::show_result() {
 // ── Networking ──
 
 void MemoryMatch::send_flip(int idx) {
-    StaticJsonDocument<128> doc;
+    net_mc_++;
+    StaticJsonDocument<160> doc;
     doc["type"] = "move";
     doc["game"] = "memory";
     doc["action"] = "flip";
     doc["idx"] = idx;
-    char buf[128];
-    serializeJson(doc, buf, sizeof(buf));
-    discovery_send_game_data(peer_ip_, buf);
+    doc["mc"] = net_mc_;
+    serializeJson(doc, net_last_move_, sizeof(net_last_move_));
+    discovery_send_game_data(peer_ip_, net_last_move_);
 }
 
 void MemoryMatch::send_board_sync() {
@@ -408,28 +409,44 @@ void MemoryMatch::onNetworkData(const char* json) {
         return;
     }
 
+    const char* a_short = doc["a"] | "";
+    if (strcmp(a_short, "hb") == 0) {
+        uint32_t peer_mc = doc["mc"] | 0;
+        if (peer_mc < net_mc_ && net_last_move_[0]) {
+            discovery_send_game_data(peer_ip_, net_last_move_);
+        }
+        return;
+    }
+
     const char* action = doc["action"] | "";
 
     if (strcmp(action, "sync") == 0) {
-        // Guest receives board layout from host
+        // Guest receives board layout from host. This is the one-shot
+        // setup message (no mc dedupe — idempotent re-apply is fine).
         JsonArray arr = doc["v"];
         if (arr.size() == NUM_CARDS) {
             for (int i = 0; i < NUM_CARDS; i++) values_[i] = arr[i];
         }
-        // Now create the board
-        lv_obj_t* scr = create_board();
-        lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
-        screen_ = scr;
+        // Only create the board once (guest arrives here before board exists).
+        if (!screen_ || !cards_[0]) {
+            lv_obj_t* scr = create_board();
+            lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+            screen_ = scr;
+        }
         return;
     }
 
     if (strcmp(action, "flip") == 0) {
+        uint32_t peer_mc = doc["mc"] | 0;
+        if (peer_mc != net_mc_ + 1) return;
+
         int idx = doc["idx"] | -1;
         if (idx < 0 || idx >= NUM_CARDS) return;
         if (matched_[idx] || revealed_[idx]) return;
 
         sound_opponent_move();
         reveal(idx);
+        net_mc_ = peer_mc;
 
         if (first_pick_ == -1) {
             first_pick_ = idx;
@@ -473,6 +490,7 @@ lv_obj_t* MemoryMatch::create_board() {
         score_p1_ = 0;
         score_p2_ = 0;
     }
+    net_reset_sync();
 
     static const int CARD_W = 68;
     static const int CARD_H = 55;
@@ -520,6 +538,17 @@ lv_obj_t* MemoryMatch::createScreen() {
 }
 
 void MemoryMatch::update() {
+    if (mode_ == MODE_NETWORK && !game_done_) {
+        if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
+            net_last_hb_ms_ = millis();
+            char hb[80];
+            snprintf(hb, sizeof(hb),
+                "{\"type\":\"move\",\"game\":\"memory\",\"a\":\"hb\",\"mc\":%u}",
+                (unsigned)net_mc_);
+            discovery_send_game_data(peer_ip_, hb);
+        }
+    }
+
     // Lobby refresh
     if (mode_ == MODE_LOBBY && lobby_list_) {
         static uint32_t last_refresh = 0;

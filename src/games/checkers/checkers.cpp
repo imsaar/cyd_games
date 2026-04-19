@@ -174,6 +174,7 @@ void Checkers::init_pieces() {
     selected_ = -1;
     must_jump_ = false;
     jump_piece_ = -1;
+    net_reset_sync();
 }
 
 lv_obj_t* Checkers::create_board() {
@@ -705,14 +706,15 @@ void Checkers::cpu_move() {
 }
 
 void Checkers::send_move(int from, int to) {
-    StaticJsonDocument<128> doc;
+    net_mc_++;
+    StaticJsonDocument<160> doc;
     doc["type"] = "move";
     doc["game"] = "checkers";
     doc["from"] = from;
     doc["to"] = to;
-    char buf[128];
-    serializeJson(doc, buf, sizeof(buf));
-    discovery_send_game_data(peer_ip_, buf);
+    doc["mc"] = net_mc_;
+    serializeJson(doc, net_last_move_, sizeof(net_last_move_));
+    discovery_send_game_data(peer_ip_, net_last_move_);
 }
 
 // ── Lifecycle ──
@@ -726,6 +728,17 @@ lv_obj_t* Checkers::createScreen() {
 }
 
 void Checkers::update() {
+    if (mode_ == MODE_NETWORK && !game_done_) {
+        if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
+            net_last_hb_ms_ = millis();
+            char hb[80];
+            snprintf(hb, sizeof(hb),
+                "{\"type\":\"move\",\"game\":\"checkers\",\"a\":\"hb\",\"mc\":%u}",
+                (unsigned)net_mc_);
+            discovery_send_game_data(peer_ip_, hb);
+        }
+    }
+
     // CPU move with delay
     if (mode_ == MODE_CPU && !is_red_turn_ && !game_done_) {
         if (!cpu_pending_) {
@@ -781,7 +794,7 @@ void Checkers::destroy() {
 }
 
 void Checkers::onNetworkData(const char* json) {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<160> doc;
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "checkers") != 0) return;
@@ -789,12 +802,28 @@ void Checkers::onNetworkData(const char* json) {
         show_result("Opponent left", false);
         return;
     }
+
+    const char* action = doc["a"] | "";
+    uint32_t peer_mc = doc["mc"] | 0;
+    if (strcmp(action, "hb") == 0) {
+        if (peer_mc < net_mc_ && net_last_move_[0]) {
+            discovery_send_game_data(peer_ip_, net_last_move_);
+        }
+        return;
+    }
+    // Strict +1: reject gaps as well as duplicates. Multi-jump chains:
+    // each jump is an independent move, so losing a middle jump leaves
+    // the game stuck (the sender's heartbeat can only resend the final
+    // move). This is a known limitation accepted for code simplicity.
+    if (peer_mc != net_mc_ + 1) return;
+
     int from = doc["from"] | -1;
     int to = doc["to"] | -1;
     if (from < 0 || from >= 64 || to < 0 || to >= 64) return;
 
     sound_opponent_move();
     try_move(from, to);
+    net_mc_ = peer_mc;
     clear_highlights();
     draw_board();
 

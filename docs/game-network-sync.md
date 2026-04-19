@@ -305,8 +305,34 @@ ESP-NOW has a **250-byte hard limit**. Here's how each game fits:
 
 Since both UDP and ESP-NOW are unreliable:
 
-1. **Turn-based games** are naturally resilient — a lost packet means a move never arrives, which stalls the game but doesn't corrupt state. The player can retry.
+1. **Turn-based games** use a **heartbeat + move-counter** pattern to auto-recover from lost moves (see below).
 2. **Pong** sends state at 20fps — a lost packet is immediately superseded by the next update 50ms later.
 3. **Pictionary** uses periodic full syncs (every 3 seconds) to recover from incremental packet loss.
-4. **No game uses acknowledgments or retransmission.** Simplicity is preferred over guaranteed delivery.
-5. **Peer disconnect detection** relies on the discovery layer's 6-second announce timeout rather than application-level heartbeats.
+4. **Peer disconnect detection** still relies on the discovery layer's 6-second announce timeout rather than application-level heartbeats.
+
+### Heartbeat & Move-Counter Resync (turn-based games)
+
+All turn-based network games (Connect 4, Chess, Checkers, Dots & Boxes, Memory Match, Battleship) share a common resync pattern, implemented via protected fields on `GameBase` (`net_mc_`, `net_last_move_`, `net_last_hb_ms_`, `net_pending_mc_`).
+
+**Per-move:**
+- Every outgoing move carries `"mc": N` — a monotonically increasing move counter.
+- `net_mc_` reflects the count of moves **applied** locally. Sender increments on local apply (which happens on their own move). Receivers apply moves with strict `+1` dedupe — `peer.mc == local.mc + 1` or the message is dropped (duplicate or gap).
+- The last outgoing move JSON is cached in `net_last_move_` so it can be re-sent on demand.
+
+**Heartbeat tick (every 2000 ms while in the network game):**
+```json
+{"type": "move", "game": "<game>", "a": "hb", "mc": <local mc>}
+```
+On receipt:
+- `peer.mc < local.mc` → peer is behind; resend our `net_last_move_`.
+- `peer.mc >= local.mc` → no action.
+
+This auto-heals the common "both waiting for the other" desync: whichever side is ahead will resend, and the receiver's strict `+1` dedupe will either apply the missing move (gap filled) or drop the duplicate (noop).
+
+**Battleship request/response variant.** Battleship's fire→result pair needs a different semantic because the attacker doesn't apply its own shot until the defender reports the outcome. The attacker sets `net_pending_mc_` when firing and retries the cached fire on every heartbeat tick until the result arrives. The defender:
+- Applies a fresh fire (`peer.mc == local.mc + 1`), advances `net_mc_`, and sends back a matching `result`.
+- On a duplicate fire (`peer.mc == local.mc`, attacker retried), resends the cached result.
+
+This survives either fire-loss or result-loss. The attacker only advances `net_mc_` when the result arrives, so `net_pending_mc_` stays non-zero until the round completes.
+
+**Known limitation — multi-move chains.** Checkers multi-jumps send each jump as a separate message. If a middle jump in the chain is lost, the strict `+1` dedupe on the receiver side will drop all subsequent jumps, and the heartbeat can only resend the latest cached jump. The chain will not auto-recover; eventual abandon is the fallback.
