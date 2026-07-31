@@ -68,3 +68,13 @@ void prefs_set_wifi_pass(const char* pass) {
 bool prefs_wifi_configured() {
     return nvs.getString("wifi_ssid", "").length() > 0;
 }
+
+int8_t prefs_get_hijri_offset() {
+    return (int8_t)nvs.getChar("hij_off", 0);
+}
+
+void prefs_set_hijri_offset(int8_t days) {
+    if (days < -2) days = -2;
+    if (days > 2) days = 2;
+    nvs.putChar("hij_off", days);
+}

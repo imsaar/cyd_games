@@ -6,6 +6,8 @@
 #include "../../net/weather.h"
 #include "../../ui/weather_icons.h"
 #include "../../ui/fonts.h"
+#include "../../hal/prefs.h"
+#include "../../utils/crash_trace.h"
 #include <Arduino.h>
 #include <time.h>
 #include <math.h>
@@ -13,8 +15,8 @@
 static lv_obj_t* screen_ = nullptr;
 static lv_obj_t* tabview_ = nullptr;
 static int active_tab_g = 0;
-static lv_obj_t* nav_panels_[5] = {};
-static lv_obj_t* nav_btns_g[6] = {};
+static lv_obj_t* nav_panels_[6] = {};
+static lv_obj_t* nav_btns_g[7] = {};
 
 // ── Clock tab ──
 static lv_obj_t* lbl_clock_time_ = nullptr;
@@ -64,6 +66,16 @@ static lv_obj_t* lbl_weather_status_ = nullptr;
 static lv_obj_t* weather_icon_clock_ = nullptr;
 static lv_obj_t* weather_icons_fc_[7] = {};
 
+// ── Calendar tab ──
+static lv_obj_t* cal_lbl_month_ = nullptr;
+static lv_obj_t* cal_lbl_hijri_range_ = nullptr;
+static lv_obj_t* cal_lbl_weekday_[7] = {};
+static lv_obj_t* cal_grid_obj_ = nullptr;  // single custom-draw object for all 42 day cells
+struct CalCell { int8_t day; int8_t hijri_day; bool valid; bool today; };
+static CalCell cal_grid_data_[42];
+static int cal_view_year_ = 0;
+static int cal_view_month_ = 0;  // 1-12
+
 static void back_cb(lv_event_t*) { screen_manager_back_to_menu(); }
 static const char* weather_symbol(int code);  // forward decl
 
@@ -84,12 +96,13 @@ static void fmt_elapsed(uint32_t ms, char* buf, int sz, bool centis) {
 // ── Hijri date approximation ──
 // ══════════════════════════════════════════
 
-static void gregorian_to_hijri(int gy, int gm, int gd, int* hy, int* hm, int* hd) {
+static void gregorian_to_hijri(int gy, int gm, int gd, int offset_days, int* hy, int* hm, int* hd) {
     // Julian Day Number
     int a = (14 - gm) / 12;
     int y = gy + 4800 - a;
     int m = gm + 12 * a - 3;
     long jd = gd + (153 * m + 2) / 5 + 365L * y + y / 4 - y / 100 + y / 400 - 32045;
+    jd += offset_days;  // moonsighting adjustment, -2..+2 days
     // Hijri from JD (Kuwaiti algorithm)
     long l = jd - 1948440 + 10632;
     long n = (l - 1) / 10631;
@@ -108,6 +121,28 @@ static const char* hijri_month_names[] = {
     "Jumada I", "Jumada II", "Rajab", "Sha'ban",
     "Ramadan", "Shawwal", "Dhul Qi'dah", "Dhul Hijjah"
 };
+
+static bool is_leap_year(int y) {
+    return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+}
+
+static int days_in_month(int y, int m) {
+    static const int dim[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (m == 2 && is_leap_year(y)) return 29;
+    return dim[m - 1];
+}
+
+// 0=Sunday .. 6=Saturday
+static int day_of_week(int y, int m, int d) {
+    struct tm t = {};
+    t.tm_year = y - 1900;
+    t.tm_mon = m - 1;
+    t.tm_mday = d;
+    t.tm_hour = 12;
+    time_t tt = mktime(&t);
+    struct tm* r = localtime(&tt);
+    return r ? r->tm_wday : 0;
+}
 
 // ══════════════════════════════════════════
 // ── Clock tab (fancy) ──
@@ -223,7 +258,7 @@ static void update_clock_tab() {
     if (lbl_clock_date_) lv_label_set_text(lbl_clock_date_, dbuf);
 
     int hy, hm, hd;
-    gregorian_to_hijri(1900 + t.tm_year, t.tm_mon + 1, t.tm_mday, &hy, &hm, &hd);
+    gregorian_to_hijri(1900 + t.tm_year, t.tm_mon + 1, t.tm_mday, prefs_get_hijri_offset(), &hy, &hm, &hd);
     char hbuf[32];
     if (hm >= 1 && hm <= 12)
         snprintf(hbuf, sizeof(hbuf), "%d %s %d AH", hd, hijri_month_names[hm - 1], hy);
@@ -699,6 +734,223 @@ static void update_weather_tab() {
     }
 }
 
+// ══════════════════════════════════════════
+// ── Calendar tab ──
+// ══════════════════════════════════════════
+
+static const int CAL_COL_W = 45;
+static const int CAL_LAST_COL_W = 50;  // absorbs 320 - 6*45 remainder
+static const int CAL_ROW_H = 24;       // 6 rows * 24 = 144
+static const int CAL_HIJRI_ROW_Y = 25;
+static const int CAL_WEEKDAY_Y = 38;
+static const int CAL_GRID_Y = 51;      // 51 + 144 = 195, fits in 196px panel
+
+static int cal_col_width(int col) { return (col == 6) ? CAL_LAST_COL_W : CAL_COL_W; }
+static int cal_col_x(int col) { return col * CAL_COL_W; }
+
+// Draws all 42 day cells directly (one lv_obj total) instead of one lv_obj
+// per cell — the earlier per-cell-label version exhausted LVGL's fixed
+// LV_MEM_SIZE heap once combined with the other 5 tabs' objects, causing a
+// crash. Same technique as weather_icons.cpp's custom-draw icons.
+static void cal_grid_draw_cb(lv_event_t* e) {
+    lv_draw_ctx_t* ctx = lv_event_get_draw_ctx(e);
+    lv_obj_t* obj = lv_event_get_target(e);
+    lv_area_t a;
+    lv_obj_get_coords(obj, &a);
+
+    lv_draw_rect_dsc_t rdsc;
+    lv_draw_rect_dsc_init(&rdsc);
+    rdsc.bg_color = UI_COLOR_PRIMARY;
+    rdsc.bg_opa = LV_OPA_COVER;
+    rdsc.radius = 4;
+    rdsc.border_width = 0;
+
+    lv_draw_label_dsc_t gdsc;
+    lv_draw_label_dsc_init(&gdsc);
+    gdsc.font = &lv_font_montserrat_12;
+    gdsc.color = UI_COLOR_TEXT;
+    gdsc.align = LV_TEXT_ALIGN_CENTER;
+
+    lv_draw_label_dsc_t hdsc;
+    lv_draw_label_dsc_init(&hdsc);
+    hdsc.font = &lv_font_montserrat_12;
+    hdsc.color = lv_color_hex(0xf0a500);
+    hdsc.align = LV_TEXT_ALIGN_CENTER;
+
+    for (int i = 0; i < 42; i++) {
+        const CalCell& c = cal_grid_data_[i];
+        if (!c.valid) continue;
+        int col = i % 7, row = i / 7;
+        int cw = cal_col_width(col);
+        int cx = a.x1 + cal_col_x(col);
+        int cy = a.y1 + row * CAL_ROW_H;
+
+        if (c.today) {
+            lv_area_t cell_a = {(lv_coord_t)cx, (lv_coord_t)cy,
+                                 (lv_coord_t)(cx + cw - 1), (lv_coord_t)(cy + CAL_ROW_H - 1)};
+            lv_draw_rect(ctx, &rdsc, &cell_a);
+        }
+
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%d", c.day);
+        lv_area_t gcoord = {(lv_coord_t)cx, (lv_coord_t)(cy + 1),
+                             (lv_coord_t)(cx + cw - 1), (lv_coord_t)(cy + 13)};
+        lv_draw_label(ctx, &gdsc, &gcoord, buf, NULL);
+
+        snprintf(buf, sizeof(buf), "%d", c.hijri_day);
+        lv_area_t hcoord = {(lv_coord_t)cx, (lv_coord_t)(cy + 12),
+                             (lv_coord_t)(cx + cw - 1), (lv_coord_t)(cy + 24)};
+        lv_draw_label(ctx, &hdsc, &hcoord, buf, NULL);
+    }
+}
+
+static void render_calendar_month() {
+    int dim = days_in_month(cal_view_year_, cal_view_month_);
+    int first_wday = day_of_week(cal_view_year_, cal_view_month_, 1);
+    int8_t hij_off = prefs_get_hijri_offset();
+
+    // Header: Gregorian month/year
+    static const char* months[] = {"January","February","March","April","May","June",
+                                    "July","August","September","October","November","December"};
+    if (cal_lbl_month_) {
+        char buf[24];
+        snprintf(buf, sizeof(buf), "%s %d", months[cal_view_month_ - 1], cal_view_year_);
+        lv_label_set_text(cal_lbl_month_, buf);
+    }
+
+    // Header: Hijri month/year range spanned by this Gregorian month
+    int hy1, hm1, hd1, hy2, hm2, hd2;
+    gregorian_to_hijri(cal_view_year_, cal_view_month_, 1, hij_off, &hy1, &hm1, &hd1);
+    gregorian_to_hijri(cal_view_year_, cal_view_month_, dim, hij_off, &hy2, &hm2, &hd2);
+    if (cal_lbl_hijri_range_ && hm1 >= 1 && hm1 <= 12 && hm2 >= 1 && hm2 <= 12) {
+        char buf[48];
+        if (hy1 == hy2 && hm1 == hm2) {
+            snprintf(buf, sizeof(buf), "%s %d AH", hijri_month_names[hm1 - 1], hy1);
+        } else if (hy1 == hy2) {
+            snprintf(buf, sizeof(buf), "%s - %s %d AH", hijri_month_names[hm1 - 1], hijri_month_names[hm2 - 1], hy2);
+        } else {
+            snprintf(buf, sizeof(buf), "%s %d - %s %d AH", hijri_month_names[hm1 - 1], hy1, hijri_month_names[hm2 - 1], hy2);
+        }
+        lv_label_set_text(cal_lbl_hijri_range_, buf);
+    }
+
+    // Today (for highlighting), only meaningful if it falls in the viewed month
+    struct tm t;
+    int ty = 0, tm_ = 0, td = 0;
+    if (getLocalTime(&t, 0)) {
+        ty = 1900 + t.tm_year;
+        tm_ = t.tm_mon + 1;
+        td = t.tm_mday;
+    }
+    bool viewing_current_month = (ty == cal_view_year_ && tm_ == cal_view_month_);
+
+    for (int i = 0; i < 42; i++) {
+        int day = i - first_wday + 1;
+        if (day < 1 || day > dim) {
+            cal_grid_data_[i].valid = false;
+            continue;
+        }
+        int hy, hm, hd;
+        gregorian_to_hijri(cal_view_year_, cal_view_month_, day, hij_off, &hy, &hm, &hd);
+        cal_grid_data_[i].valid = true;
+        cal_grid_data_[i].day = (int8_t)day;
+        cal_grid_data_[i].hijri_day = (int8_t)hd;
+        cal_grid_data_[i].today = viewing_current_month && (day == td);
+    }
+    if (cal_grid_obj_) lv_obj_invalidate(cal_grid_obj_);
+}
+
+static void cal_prev_cb(lv_event_t*) {
+    cal_view_month_--;
+    if (cal_view_month_ < 1) { cal_view_month_ = 12; cal_view_year_--; }
+    render_calendar_month();
+}
+
+static void cal_next_cb(lv_event_t*) {
+    cal_view_month_++;
+    if (cal_view_month_ > 12) { cal_view_month_ = 1; cal_view_year_++; }
+    render_calendar_month();
+}
+
+static void build_calendar_tab(lv_obj_t* tab) {
+    // ── Header: prev/next month nav + Gregorian/Hijri month labels ──
+    lv_obj_t* btn_prev = ui_create_btn(tab, LV_SYMBOL_LEFT, 26, 26);
+    lv_obj_set_pos(btn_prev, 0, 2);
+    lv_obj_add_event_cb(btn_prev, cal_prev_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* btn_next = ui_create_btn(tab, LV_SYMBOL_RIGHT, 26, 26);
+    lv_obj_set_pos(btn_next, 294, 2);
+    lv_obj_add_event_cb(btn_next, cal_next_cb, LV_EVENT_CLICKED, NULL);
+
+    cal_lbl_month_ = lv_label_create(tab);
+    lv_obj_set_style_text_font(cal_lbl_month_, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(cal_lbl_month_, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_align(cal_lbl_month_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(cal_lbl_month_, 264);
+    lv_obj_set_pos(cal_lbl_month_, 28, 1);
+    lv_label_set_text(cal_lbl_month_, "");
+
+    cal_lbl_hijri_range_ = lv_label_create(tab);
+    lv_obj_set_style_text_font(cal_lbl_hijri_range_, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(cal_lbl_hijri_range_, lv_color_hex(0xf0a500), 0);
+    lv_obj_set_style_text_align(cal_lbl_hijri_range_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(cal_lbl_hijri_range_, 264);
+    lv_obj_set_pos(cal_lbl_hijri_range_, 28, CAL_HIJRI_ROW_Y);
+    lv_label_set_text(cal_lbl_hijri_range_, "");
+
+    // ── Weekday header row ──
+    static const char* weekday_names[] = {"S","M","T","W","T","F","S"};
+    for (int col = 0; col < 7; col++) {
+        cal_lbl_weekday_[col] = lv_label_create(tab);
+        lv_obj_set_style_text_font(cal_lbl_weekday_[col], &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(cal_lbl_weekday_[col], UI_COLOR_DIM, 0);
+        lv_obj_set_style_text_align(cal_lbl_weekday_[col], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(cal_lbl_weekday_[col], cal_col_width(col));
+        lv_obj_set_pos(cal_lbl_weekday_[col], cal_col_x(col), CAL_WEEKDAY_Y);
+        lv_label_set_text(cal_lbl_weekday_[col], weekday_names[col]);
+    }
+
+    // ── Day grid: single custom-draw object renders all 7x6 cells ──
+    memset(cal_grid_data_, 0, sizeof(cal_grid_data_));
+    cal_grid_obj_ = lv_obj_create(tab);
+    lv_obj_remove_style_all(cal_grid_obj_);
+    lv_obj_set_size(cal_grid_obj_, 320, CAL_ROW_H * 6);
+    lv_obj_set_pos(cal_grid_obj_, 0, CAL_GRID_Y);
+    lv_obj_clear_flag(cal_grid_obj_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(cal_grid_obj_, cal_grid_draw_cb, LV_EVENT_DRAW_POST, NULL);
+
+    {
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
+        crash_trace_checkpoint("clock_app:calendar_grid_created", mon.free_size, mon.free_biggest_size);
+    }
+
+    struct tm t;
+    if (getLocalTime(&t, 0)) {
+        cal_view_year_ = 1900 + t.tm_year;
+        cal_view_month_ = t.tm_mon + 1;
+    } else {
+        cal_view_year_ = 2026;
+        cal_view_month_ = 1;
+    }
+    render_calendar_month();
+
+    {
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
+        crash_trace_checkpoint("clock_app:calendar_render_done", mon.free_size, mon.free_biggest_size);
+    }
+}
+
+static void update_calendar_tab() {
+    // Re-render periodically so "today"'s highlight rolls over at midnight
+    // if the calendar tab is left open.
+    static uint32_t last = 0;
+    if (millis() - last < 30000) return;
+    last = millis();
+    render_calendar_month();
+}
+
 // ── Lifecycle ──
 // ══════════════════════════════════════════
 
@@ -708,20 +960,20 @@ lv_obj_t* clock_app_create() {
     lv_obj_clear_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
 
     // ── Two-row nav bar ──
-    // Row 1: Menu, Clock, Timer  |  Row 2: Stopwatch, Alarm, Weather
+    // Row 1: Menu, Clock, Timer, Stopwatch  |  Row 2: Alarm, Weather, Calendar
     static const char* nav_labels[] = {
-        LV_SYMBOL_LEFT " Menu", "Clock", "Timer",
-        "Stopwatch", "Alarm", "Weather"
+        LV_SYMBOL_LEFT " Menu", "Clock", "Timer", "Stopwatch",
+        "Alarm", "Weather", "Calendar"
     };
-    static const int NAV_COUNT = 6;
+    static const int NAV_COUNT = 7;
     static const int ROW_H = 20;
     static const int NAV_H = ROW_H * 2 + 4;
-    int col_w[] = {76, 120, 120, 106, 106, 104};  // fill full 320px width
+    int col_w[] = {68, 82, 82, 82, 100, 100, 116};  // fill full 320px width
     int row_x[] = {0, 0};  // running x for each row
 
     memset(nav_btns_g, 0, sizeof(nav_btns_g));
     for (int i = 0; i < NAV_COUNT; i++) {
-        int row = (i < 3) ? 0 : 1;
+        int row = (i < 4) ? 0 : 1;
         int y = row * (ROW_H + 2) + 1;
         lv_obj_t* btn = lv_btn_create(screen_);
         lv_obj_set_size(btn, col_w[i], ROW_H);
@@ -740,7 +992,7 @@ lv_obj_t* clock_app_create() {
 
     // Content panels (one per tab, stacked)
     memset(nav_panels_, 0, sizeof(nav_panels_));
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         nav_panels_[i] = lv_obj_create(screen_);
         lv_obj_remove_style_all(nav_panels_[i]);
         lv_obj_set_size(nav_panels_[i], 320, 240 - NAV_H);
@@ -757,11 +1009,11 @@ lv_obj_t* clock_app_create() {
 
     // Menu button (index 0)
     lv_obj_add_event_cb(nav_btns_g[0], back_cb, LV_EVENT_CLICKED, NULL);
-    // Tab buttons (index 1-5 map to panels 0-4)
+    // Tab buttons (index 1-6 map to panels 0-5)
     for (int i = 1; i < NAV_COUNT; i++) {
         lv_obj_add_event_cb(nav_btns_g[i], [](lv_event_t* e) {
             int idx = (int)(intptr_t)lv_event_get_user_data(e);
-            for (int j = 0; j < 5; j++) {
+            for (int j = 0; j < 6; j++) {
                 if (nav_panels_[j]) {
                     if (j == idx) lv_obj_clear_flag(nav_panels_[j], LV_OBJ_FLAG_HIDDEN);
                     else lv_obj_add_flag(nav_panels_[j], LV_OBJ_FLAG_HIDDEN);
@@ -774,11 +1026,25 @@ lv_obj_t* clock_app_create() {
         }, LV_EVENT_CLICKED, (void*)(intptr_t)(i - 1));
     }
 
+    auto checkpoint = [](const char* name) {
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
+        crash_trace_checkpoint(name, mon.free_size, mon.free_biggest_size);
+    };
+
+    checkpoint("clock_app:create:start");
     build_clock_tab(nav_panels_[0]);
+    checkpoint("clock_app:build_timer");
     build_timer_tab(nav_panels_[1]);
+    checkpoint("clock_app:build_stopwatch");
     build_stopwatch_tab(nav_panels_[2]);
+    checkpoint("clock_app:build_alarm");
     build_alarm_tab(nav_panels_[3]);
+    checkpoint("clock_app:build_weather");
     build_weather_tab(nav_panels_[4]);
+    checkpoint("clock_app:build_calendar");
+    build_calendar_tab(nav_panels_[5]);
+    checkpoint("clock_app:create:done");
 
     // If timer is currently running, show run mode
     if (alert_state_timer_running()) show_timer_run_mode();
@@ -796,6 +1062,7 @@ void clock_app_update() {
         case 1: update_timer_tab(); break;
         case 2: update_stopwatch_tab(); break;
         case 4: update_weather_tab(); break;
+        case 5: update_calendar_tab(); break;
         default: break;
     }
 }
@@ -816,4 +1083,7 @@ void clock_app_destroy() {
     memset(lbl_weather_tmp_, 0, sizeof(lbl_weather_tmp_));
     memset(lbl_weather_cnd_, 0, sizeof(lbl_weather_cnd_));
     memset(weather_icons_fc_, 0, sizeof(weather_icons_fc_));
+    cal_lbl_month_ = nullptr; cal_lbl_hijri_range_ = nullptr;
+    memset(cal_lbl_weekday_, 0, sizeof(cal_lbl_weekday_));
+    cal_grid_obj_ = nullptr;
 }

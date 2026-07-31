@@ -20,3 +20,5 @@ void     prefs_set_wifi_ssid(const char* ssid);
 void     prefs_get_wifi_pass(char* buf, size_t len);
 void     prefs_set_wifi_pass(const char* pass);
 bool     prefs_wifi_configured();
+int8_t   prefs_get_hijri_offset();  // -2..+2 days, moonsighting adjustment
+void     prefs_set_hijri_offset(int8_t days);

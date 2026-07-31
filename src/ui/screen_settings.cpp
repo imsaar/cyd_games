@@ -15,6 +15,15 @@ static lv_obj_t* lbl_info = nullptr;
 static lv_obj_t* slider_bl = nullptr;
 static lv_obj_t* lbl_bl_val = nullptr;
 static lv_obj_t* sw_darkmode = nullptr;
+static lv_obj_t* lbl_hijri_val = nullptr;
+
+static void update_hijri_offset_label() {
+    if (!lbl_hijri_val) return;
+    int8_t v = prefs_get_hijri_offset();
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%+d", v);
+    lv_label_set_text(lbl_hijri_val, buf);
+}
 
 static void update_info_text() {
     if (!lbl_info) return;
@@ -334,6 +343,45 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_pos(btn_wcfg, 110, 2);
     lv_obj_add_event_cb(btn_wcfg, [](lv_event_t*) {
         screen_manager_switch(SCREEN_WIFI);
+    }, LV_EVENT_CLICKED, NULL);
+
+    // ── Hijri date adjustment (moonsighting +/- days) ──
+    lv_obj_t* hij_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(hij_row);
+    lv_obj_set_size(hij_row, 300, 30);
+    lv_obj_clear_flag(hij_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* hij_label = lv_label_create(hij_row);
+    lv_label_set_text(hij_label, "Hijri Adj");
+    lv_obj_set_style_text_color(hij_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(hij_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(hij_label, 0, 8);
+
+    lv_obj_t* btn_hij_dn = ui_create_btn(hij_row, "-", 30, 24);
+    lv_obj_set_pos(btn_hij_dn, 110, 3);
+
+    lbl_hijri_val = lv_label_create(hij_row);
+    lv_obj_set_style_text_color(lbl_hijri_val, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(lbl_hijri_val, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_align(lbl_hijri_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl_hijri_val, 40);
+    lv_obj_set_pos(lbl_hijri_val, 148, 8);
+    update_hijri_offset_label();
+
+    lv_obj_t* btn_hij_up = ui_create_btn(hij_row, "+", 30, 24);
+    lv_obj_set_pos(btn_hij_up, 196, 3);
+
+    lv_obj_add_event_cb(btn_hij_dn, [](lv_event_t*) {
+        int8_t v = prefs_get_hijri_offset();
+        if (v > -2) v--;
+        prefs_set_hijri_offset(v);
+        update_hijri_offset_label();
+    }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(btn_hij_up, [](lv_event_t*) {
+        int8_t v = prefs_get_hijri_offset();
+        if (v < 2) v++;
+        prefs_set_hijri_offset(v);
+        update_hijri_offset_label();
     }, LV_EVENT_CLICKED, NULL);
 
     // ── Info text ──

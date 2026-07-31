@@ -1,12 +1,30 @@
 #include "ota.h"
 #include "config.h"
+#include "../utils/crash_trace.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
 
 static WebServer server(OTA_PORT);
 static bool ota_update_done = false;
+
+static const char* reset_reason_str() {
+    switch (esp_reset_reason()) {
+        case ESP_RST_POWERON:   return "Power-on";
+        case ESP_RST_EXT:       return "External reset";
+        case ESP_RST_SW:        return "Software reset (ESP.restart)";
+        case ESP_RST_PANIC:     return "PANIC (crash)";
+        case ESP_RST_INT_WDT:   return "Interrupt watchdog";
+        case ESP_RST_TASK_WDT:  return "Task watchdog";
+        case ESP_RST_WDT:       return "Other watchdog";
+        case ESP_RST_DEEPSLEEP: return "Deep sleep wake";
+        case ESP_RST_BROWNOUT:  return "Brownout (low power)";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "Unknown";
+    }
+}
 
 void ota_validate_app() {
     esp_ota_mark_app_valid_cancel_rollback();
@@ -88,6 +106,21 @@ void ota_init() {
             "};"
             "</script></body></html>";
         server.send(200, "text/html", page);
+    });
+
+    // Plain-text remote diagnostics — fetch with: curl http://<ip>/debug
+    server.on("/debug", HTTP_GET, []() {
+        String body;
+        body += "FW:          v" FW_VERSION "\n";
+        body += "Reset reason: " + String(reset_reason_str()) + "\n";
+        body += "Free heap:    " + String(ESP.getFreeHeap()) + " bytes\n";
+        body += "Min free heap:" + String(ESP.getMinFreeHeap()) + " bytes (lowest since boot)\n";
+        body += "Largest block:" + String(ESP.getMaxAllocHeap()) + " bytes\n";
+        body += "Uptime:       " + String(millis() / 1000) + " s\n";
+        char trace[96];
+        crash_trace_format(trace, sizeof(trace));
+        body += "Crash trace:  " + String(trace) + "\n";
+        server.send(200, "text/plain", body);
     });
 
     ElegantOTA.begin(&server);

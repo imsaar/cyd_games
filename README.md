@@ -17,7 +17,7 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 | Game / App | Players | Network | Description |
 |------------|---------|---------|-------------|
 | Battleship | 1-2P | Yes | 8x8 grid, drag/rotate ships, fire to sink fleet, vs CPU (hunt/target AI)/local/network |
-| Clock | - | - | Clock (with Islamic date), Timer, Stopwatch, Alarm, Seattle Weather (7-day forecast) |
+| Clock | - | - | Clock (with Islamic date), Timer, Stopwatch, Alarm, Seattle Weather (7-day forecast), Calendar (Gregorian + Hijri month grid) |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
 | Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
 | Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
@@ -34,13 +34,14 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 
 - **LVGL UI** — Dark-themed interface with animated screen transitions
 - **OTA Updates** — Custom web UI at `http://<IP>/update` showing device info, firmware version, and partition status
+- **Remote Diagnostics** — `GET http://<IP>/debug` returns reset reason (panic/watchdog/brownout/normal), free heap, and a crash-trace breadcrumb (last build checkpoint + LVGL memory stats), readable without a USB connection
 - **Dual OTA Partitions** — app0/app1 alternating, with automatic rollback protection
 - **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system, heartbeat + move-counter resync auto-heals dropped moves in turn-based games
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
 - **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
 - **Sound Effects** — Piezo buzzer feedback for moves, opponent moves, wins, losses, and startup
-- **Persistent Settings** — Brightness, dark mode, sound, and device name saved to NVS across power cycles
-- **Settings Screen** — Device name editor, brightness slider, Dark Mode toggle, Sound on/off, WiFi on/off switch, WiFi Setup (on-screen SSID/password entry), IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
+- **Persistent Settings** — Brightness, dark mode, sound, device name, and Hijri date offset saved to NVS across power cycles
+- **Settings Screen** — Device name editor, brightness slider, Dark Mode toggle, Sound on/off, WiFi on/off switch, WiFi Setup (on-screen SSID/password entry), Hijri date adjustment (±2 days for moonsighting), IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
 ## Build & Flash
 
@@ -77,6 +78,14 @@ esptool --chip esp32 --port /dev/cu.usbserial-110 write_flash \
 http://<DEVICE_IP>/update
 ```
 
+### Remote diagnostics
+
+```bash
+curl http://<DEVICE_IP>/debug
+```
+
+Returns firmware version, last reset reason (useful for spotting crashes/watchdog resets/brownouts), free heap, and a crash-trace breadcrumb — no USB connection needed.
+
 ## WiFi Setup
 
 Credentials are stored in NVS and can be entered directly on the device:
@@ -111,8 +120,8 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
 │   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
 │   ├── ui/                 # Screen manager, menu, settings, shared styles
-│   ├── apps/               # Clock (Timer, Stopwatch, Alarm)
-│   ├── utils/              # Global alert state and overlay system
+│   ├── apps/               # Clock (Timer, Stopwatch, Alarm, Calendar)
+│   ├── utils/              # Global alert state/overlay, crash-trace breadcrumbs
 │   └── games/              # Battleship, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
 │                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary

@@ -107,6 +107,40 @@ static void icon_draw_cb(lv_event_t* e) {
 
 Works well for weather icons (sun rays, cloud circles, rain lines, lightning bolts) at 18-36px sizes.
 
+## LVGL Memory Pool (`LV_MEM_SIZE`) Exhaustion
+
+`LV_MEM_SIZE` in `lv_conf.h` is a **fixed-size static pool** (40KB in this project) that all LVGL objects/styles are allocated from at runtime. It is completely separate from the ESP32's general heap — `ESP.getFreeHeap()` looking healthy tells you nothing about how full this pool is.
+
+Symptom: a screen that builds many widgets crashes (PANIC reset) with a blank flash and a bounce back to the previous screen, even though general heap is fine. This happens because `lv_*_create()` returns `NULL` when the pool is full, and unchecked code then dereferences it.
+
+Root cause we hit: the Clock app's screen builds all 6 tabs eagerly (so switching tabs is instant), so every tab's objects coexist in the pool simultaneously. Adding a 7x6 day-grid calendar tab with **one `lv_obj_t` label per cell** (42 objects, each with several `lv_obj_set_style_*` calls) pushed cumulative usage over the 40KB ceiling — confirmed by checkpointing `lv_mem_monitor()` right before the tab was built, which showed only ~4.5KB free.
+
+Fix: **use a single custom-draw object per grid/repeating-widget area instead of one object per cell**, same technique as the [weather icons](#custom-drawing-icons) above — draw all cells' text/backgrounds in one `LV_EVENT_DRAW_POST` callback using `lv_draw_label()` / `lv_draw_rect()`. This took the calendar tab from ~55 objects down to ~11, using a small fraction of the pool.
+
+Things that *don't* fix this:
+- **Bumping `LV_MEM_SIZE`** — on this board the static DRAM segment is already nearly maxed out; even a 4KB increase overflowed the link budget (`region 'dram0_0_seg' overflowed`). Check with a real build, don't assume there's headroom.
+- **Shared `lv_style_t` objects** — cuts per-object *style* overhead (useful, and worth doing regardless — see below), but doesn't help if the object count itself is the problem.
+
+Still worth doing when you do need N similarly-styled objects: set common properties once via a shared `lv_style_t` + `lv_obj_add_style()`, instead of calling `lv_obj_set_style_*()` individually on each object. Each individual local-style call grows a per-object property list out of the pool; N objects × M properties adds up fast.
+
+```cpp
+static lv_style_t cell_style;
+lv_style_init(&cell_style);
+lv_style_set_text_font(&cell_style, &lv_font_montserrat_12);
+// ... set shared props once ...
+for (int i = 0; i < N; i++) {
+    lv_obj_t* cell = lv_label_create(parent);
+    lv_obj_add_style(cell, &cell_style, 0);  // no per-object property storage
+}
+```
+
+### Diagnosing without a USB connection
+
+A panic reboots the board before you can read `Serial` output unless you already had a monitor attached. To debug remotely:
+
+- `esp_reset_reason()` (from `esp_system.h`) tells you if the last boot was caused by `ESP_RST_PANIC` / `ESP_RST_TASK_WDT` / `ESP_RST_BROWNOUT` vs. a normal reset — expose it over the existing OTA web server (`GET /debug` in this project) so `curl http://<ip>/debug` works after a crash.
+- `RTC_NOINIT_ATTR` globals survive panic/watchdog resets (cleared only on power-on), so you can drop lightweight "checkpoint" breadcrumbs (name + `lv_mem_monitor()` stats) at each major build step and read the last one back after reboot — see `src/utils/crash_trace.h`. This pinpointed the exact tab-build call that was running when the pool ran out, without ever plugging in a cable.
+
 ## ArduinoJson Buffer Sizes
 
 `StaticJsonDocument<N>` pool: each object member and array element uses ~16 bytes on ESP32 (32-bit). **Fields added last are silently dropped** when the pool is full.
