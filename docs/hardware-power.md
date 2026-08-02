@@ -92,6 +92,13 @@ Typical portable build: a single-cell LiPo (3.7 V nominal, 4.2 V fully charged, 
 | P1 (JST 1.25mm 4-pin) | GND, GPIO22, GPIO27, 3V3 | I²C / extension |
 | P3 (JST 1.25mm 4-pin) | GND, GPIO35, GPIO22, 3V3 | Sensor input |
 | CN1 (JST 1.25mm 4-pin) | GND, TX, RX, 3V3 | UART / programming |
+| SPK (JST 1.25mm 2-pin) | Speaker +/− | Amp-driven speaker output |
 | USB | 5 V in, USB serial via CH340 | Flashing + power |
 
 For the GPIO pins this firmware actually uses (display, touch, RGB LED, speaker, LDR), see [`include/config.h`](../include/config.h).
+
+## Speaker (GPIO26, SPK JST connector)
+
+The 2.8" CYD has an onboard class-D amp (SC8002B/PAM8002A-class chip) wired to the 2-pin JST "SPK" connector, driven directly by a single GPIO — no I2S wiring needed. This firmware drives it the same way it drives the GPIO22 piezo buzzer: `ledcWriteTone` square-wave PWM (`src/hal/audio.cpp`), just on a separate LEDC channel/pin. Select it in Settings → "Audio Out" (default is the buzzer).
+
+**If the speaker stays silent after selecting it in Settings:** check `http://<device-ip>/debug` first — it now includes a live log of `[audio]`/`[sound]` lines (`src/utils/debug_log.cpp`) showing the channel, pin, and frequency each time a tone plays, with no USB connection needed (useful once the board is in an enclosure). If the log shows `ledcWriteTone_returned` matching the requested frequency, the firmware side is confirmed working and the fault is downstream — check the JST connector is fully seated, confirm the amp chip is actually populated near the connector (some cheap board batches leave the footprint empty), or try swapping the speaker itself. That last one has been the actual root cause here at least once: a dead/faulty speaker unit produced this exact symptom with a firmware-side log that looked completely correct.

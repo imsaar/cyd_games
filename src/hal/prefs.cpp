@@ -78,3 +78,9 @@ void prefs_set_hijri_offset(int8_t days) {
     if (days > 2) days = 2;
     nvs.putChar("hij_off", days);
 }
+
+uint8_t prefs_get_audio_output() { return nvs.getUChar("aud_out", 0); }  // 0 = buzzer
+void    prefs_set_audio_output(uint8_t val) { nvs.putUChar("aud_out", val); }
+
+bool prefs_get_startup_sound() { return nvs.getBool("startup_snd", true); }
+void prefs_set_startup_sound(bool val) { nvs.putBool("startup_snd", val); }

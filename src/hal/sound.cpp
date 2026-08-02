@@ -1,6 +1,7 @@
 #include "sound.h"
 #include "audio.h"
 #include "prefs.h"
+#include "../utils/debug_log.h"
 #include <Arduino.h>
 
 // Non-blocking melody player
@@ -63,14 +64,17 @@ static void play(const Note* notes, int len, bool repeat = false) {
     melody_idx_ = 0;
     playing_ = true;
     repeating_ = repeat;
-    ledcWriteTone(6, notes[0].freq);
+    uint8_t ch = audio_active_channel();
+    uint32_t actual_freq = ledcWriteTone(ch, notes[0].freq);
+    debug_log("[sound] play ch=%d requested_freq=%d ledcWriteTone_returned=%lu\n",
+        ch, notes[0].freq, (unsigned long)actual_freq);
     note_start_ = millis();
 }
 
 // ── Public API ──
 
 void sound_init() {
-    // audio_init() already sets up LEDC channel 6
+    // audio_init() already sets up the LEDC channels for both outputs
     muted_ = prefs_get_muted();
 }
 
@@ -78,7 +82,7 @@ bool sound_get_muted() { return muted_; }
 void sound_set_muted(bool muted) {
     muted_ = muted;
     prefs_set_muted(muted);
-    if (muted) { ledcWriteTone(6, 0); playing_ = false; repeating_ = false; }
+    if (muted) { ledcWriteTone(audio_active_channel(), 0); playing_ = false; repeating_ = false; }
 }
 
 void sound_update() {
@@ -92,17 +96,20 @@ void sound_update() {
         if (repeating_) {
             melody_idx_ = 0;  // loop
         } else {
-            ledcWriteTone(6, 0);
+            ledcWriteTone(audio_active_channel(), 0);
             playing_ = false;
             return;
         }
     }
 
-    ledcWriteTone(6, melody_[melody_idx_].freq);
+    ledcWriteTone(audio_active_channel(), melody_[melody_idx_].freq);
     note_start_ = millis();
 }
 
-void sound_startup() { play(melody_startup, sizeof(melody_startup) / sizeof(Note)); }
+void sound_startup() {
+    if (!prefs_get_startup_sound()) return;
+    play(melody_startup, sizeof(melody_startup) / sizeof(Note));
+}
 void sound_move()         { play(melody_move,     sizeof(melody_move)     / sizeof(Note)); }
 void sound_opponent_move(){ play(melody_opponent,  sizeof(melody_opponent) / sizeof(Note)); }
 void sound_win()          { play(melody_win,       sizeof(melody_win)      / sizeof(Note)); }
@@ -110,4 +117,4 @@ void sound_lose()    { play(melody_lose,    sizeof(melody_lose)    / sizeof(Note
 void sound_gameover()    { play(melody_gameover,   sizeof(melody_gameover)   / sizeof(Note)); }
 void sound_timer_done()  { play(melody_timer_done, sizeof(melody_timer_done) / sizeof(Note)); }
 void sound_alarm_start() { play(melody_alarm,      sizeof(melody_alarm)      / sizeof(Note), true); }
-void sound_alarm_stop()  { ledcWriteTone(6, 0); playing_ = false; repeating_ = false; }
+void sound_alarm_stop()  { ledcWriteTone(audio_active_channel(), 0); playing_ = false; repeating_ = false; }

@@ -5,6 +5,7 @@
 #include "../hal/prefs.h"
 #include "../hal/display.h"
 #include "../hal/sound.h"
+#include "../hal/audio.h"
 #include "../net/wifi_manager.h"
 #include "../net/discovery.h"
 #include <WiFi.h>
@@ -301,6 +302,63 @@ lv_obj_t* screen_settings_create() {
     lv_obj_set_style_text_color(snd_status, sound_get_muted() ? UI_COLOR_DIM : UI_COLOR_SUCCESS, 0);
     lv_obj_set_style_text_font(snd_status, &lv_font_montserrat_12, 0);
     lv_obj_set_pos(snd_status, 165, 6);
+
+    // ── Audio Out toggle (unchecked = Buzzer default, checked = Speaker) ──
+    lv_obj_t* aout_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(aout_row);
+    lv_obj_set_size(aout_row, 300, 30);
+    lv_obj_clear_flag(aout_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* aout_label = lv_label_create(aout_row);
+    lv_label_set_text(aout_label, "Audio Out");
+    lv_obj_set_style_text_color(aout_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(aout_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(aout_label, 0, 6);
+
+    lv_obj_t* sw_aout = lv_switch_create(aout_row);
+    lv_obj_set_pos(sw_aout, 110, 2);
+    lv_obj_set_size(sw_aout, 40, 22);
+    if (audio_get_output() == AUDIO_OUT_SPEAKER) lv_obj_add_state(sw_aout, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw_aout, UI_COLOR_CARD, 0);
+    lv_obj_set_style_bg_color(sw_aout, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
+
+    lv_obj_t* aout_status = lv_label_create(aout_row);
+    lv_label_set_text(aout_status, audio_get_output() == AUDIO_OUT_SPEAKER ? "Speaker" : "Buzzer");
+    lv_obj_set_style_text_color(aout_status, UI_COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(aout_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(aout_status, 165, 6);
+
+    lv_obj_add_event_cb(sw_aout, [](lv_event_t* e) {
+        lv_obj_t* sw = lv_event_get_target(e);
+        bool speaker = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        audio_set_output(speaker ? AUDIO_OUT_SPEAKER : AUDIO_OUT_BUZZER);
+        lv_obj_t* status = (lv_obj_t*)lv_event_get_user_data(e);
+        lv_label_set_text(status, speaker ? "Speaker" : "Buzzer");
+    }, LV_EVENT_VALUE_CHANGED, aout_status);
+
+    // ── Startup Sound toggle ──
+    lv_obj_t* start_row = lv_obj_create(cont);
+    lv_obj_remove_style_all(start_row);
+    lv_obj_set_size(start_row, 300, 30);
+    lv_obj_clear_flag(start_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* start_label = lv_label_create(start_row);
+    lv_label_set_text(start_label, "Startup Sound");
+    lv_obj_set_style_text_color(start_label, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(start_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(start_label, 0, 6);
+
+    lv_obj_t* sw_start = lv_switch_create(start_row);
+    lv_obj_set_pos(sw_start, 110, 2);
+    lv_obj_set_size(sw_start, 40, 22);
+    if (prefs_get_startup_sound()) lv_obj_add_state(sw_start, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw_start, UI_COLOR_CARD, 0);
+    lv_obj_set_style_bg_color(sw_start, UI_COLOR_SUCCESS, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_start, [](lv_event_t* e) {
+        lv_obj_t* sw = lv_event_get_target(e);
+        bool on = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        prefs_set_startup_sound(on);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
 
     // ── WiFi toggle ──
     lv_obj_t* wifi_row = lv_obj_create(cont);

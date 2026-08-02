@@ -22,3 +22,7 @@ void     prefs_set_wifi_pass(const char* pass);
 bool     prefs_wifi_configured();
 int8_t   prefs_get_hijri_offset();  // -2..+2 days, moonsighting adjustment
 void     prefs_set_hijri_offset(int8_t days);
+uint8_t  prefs_get_audio_output();  // 0 = buzzer (default), 1 = speaker
+void     prefs_set_audio_output(uint8_t val);
+bool     prefs_get_startup_sound();  // default true
+void     prefs_set_startup_sound(bool val);

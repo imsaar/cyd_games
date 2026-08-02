@@ -1,6 +1,7 @@
 #include "ota.h"
 #include "config.h"
 #include "../utils/crash_trace.h"
+#include "../utils/debug_log.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
@@ -120,6 +121,10 @@ void ota_init() {
         char trace[96];
         crash_trace_format(trace, sizeof(trace));
         body += "Crash trace:  " + String(trace) + "\n";
+        body += "\n--- log ---\n";
+        char log[2048];
+        debug_log_get(log, sizeof(log));
+        body += log;
         server.send(200, "text/plain", body);
     });
 

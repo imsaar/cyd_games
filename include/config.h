@@ -24,7 +24,8 @@
 #define LED_B_PIN       17
 
 // ── Audio ──
-#define SPEAKER_PIN     22
+#define BUZZER_PIN      22  // piezo buzzer (original)
+#define SPEAKER_PIN     26  // amp-driven speaker
 
 // ── Light sensor ──
 #define LDR_PIN         34
