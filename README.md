@@ -19,12 +19,12 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 | Battleship | 1-2P | Yes | 8x8 grid, drag/rotate ships, fire to sink fleet, vs CPU (hunt/target AI)/local/network |
 | Clock | - | - | Clock (with Islamic date), Timer, Stopwatch, Alarm, Seattle Weather (7-day forecast), Calendar (Gregorian + Hijri month grid) |
 | Pong | 1-2P | Yes | Touch paddle, vs CPU or network, first to 10 |
-| Connect 4 | 1-2P | Yes | vs CPU, local, or network, 4-direction win check |
+| Connect 4 | 1-2P | Yes | vs CPU (minimax w/ alpha-beta pruning), local, or network, 4-direction win check |
 | Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
 | Checkers | 1-2P | Yes | vs CPU, full rules with kings and forced jumps |
 | Chess | 1-2P | Yes | vs CPU, Unicode piece symbols, full rules, board auto-flips so your pieces are always closest in network games |
 | Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words |
-| Dots & Boxes | 2P | Yes | Claim boxes by completing lines |
+| Dots & Boxes | 2P | Yes | Claim boxes by completing lines, 5x5 dot grid (4x4 boxes) |
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
 | Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
 | Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates with error highlights, elapsed timer |

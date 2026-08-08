@@ -20,17 +20,17 @@ public:
     uint8_t maxPlayers() const override { return 2; }
 
 private:
-    // 4x4 dots = 3x3 boxes
-    static const int DOTS = 4;
-    static const int BOXES = DOTS - 1;  // 3
-    static const int GAP = 50;   // Distance between dots
+    // 5x5 dots = 4x4 boxes
+    static const int DOTS = 5;
+    static const int BOXES = DOTS - 1;  // 4
+    static const int GAP = 45;   // Distance between dots
     static const int DOT_R = 4;
 
     // Lines: horizontal lines = DOTS * (DOTS-1), vertical = same
-    // Total lines = 2 * DOTS * BOXES = 24
-    static const int H_LINES = DOTS * BOXES;   // 12 horizontal
-    static const int V_LINES = BOXES * DOTS;   // 12 vertical
-    static const int TOTAL_LINES = H_LINES + V_LINES;  // 24
+    // Total lines = 2 * DOTS * BOXES = 40
+    static const int H_LINES = DOTS * BOXES;   // 20 horizontal
+    static const int V_LINES = BOXES * DOTS;   // 20 vertical
+    static const int TOTAL_LINES = H_LINES + V_LINES;  // 40
 
     enum Player { NONE = 0, P1 = 1, P2 = 2 };
 

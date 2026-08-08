@@ -52,7 +52,8 @@ private:
     void send_move(int col);
     void show_result(const char* text, bool is_win);
     int cpu_pick_col();
-    int score_col(int col, Cell who);
+    int minimax(int depth, int alpha, int beta, bool maximizing);
+    int evaluate_board();
     uint32_t cpu_think_time_ = 0;
     bool cpu_pending_ = false;
 

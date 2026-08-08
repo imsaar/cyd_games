@@ -142,7 +142,7 @@ void MyGame::destroy() {
 ```json
 {"type": "move", "game": "dotsboxes", "line": 10}
 ```
-- `line`: Line index 0-23 (12 horizontal + 12 vertical)
+- `line`: Line index 0-39 (20 horizontal + 20 vertical, 5x5 dot grid / 4x4 boxes)
 
 **Sync pattern:** Move replication with bonus turns. When a line completes a box, the current player gets another turn. Scoring is computed dynamically from the `boxes_[]` array.
 

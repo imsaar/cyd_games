@@ -402,51 +402,136 @@ void Connect4::show_result(const char* text, bool is_win) {
     }, LV_EVENT_CLICKED, NULL);
 }
 
-// ── CPU AI ──
+// ── CPU AI (minimax with alpha-beta pruning) ──
 
-// Score a hypothetical drop for 'who' in 'col'
-int Connect4::score_col(int col, Cell who) {
-    // Find where disc would land
-    int row = -1;
-    for (int r = ROWS - 1; r >= 0; r--) {
-        if (board_[r * COLS + col] == EMPTY) { row = r; break; }
+static const int C4_WIN_SCORE = 1000000;
+static const int C4_SEARCH_DEPTH = 6;
+
+// Column visit order, center-out, gives alpha-beta far more early cutoffs.
+static void c4_col_order(int order[], int cols) {
+    int mid = cols / 2;
+    int oi = 0;
+    order[oi++] = mid;
+    for (int d = 1; d <= mid; d++) {
+        if (mid - d >= 0) order[oi++] = mid - d;
+        if (mid + d < cols) order[oi++] = mid + d;
     }
-    if (row < 0) return -1000;  // Column full
+}
 
-    // Temporarily place
-    board_[row * COLS + col] = who;
-    bool wins = check_win(row, col);
-    board_[row * COLS + col] = EMPTY;
+// Heuristic score of the current board from YELLOW's (CPU's) perspective.
+int Connect4::evaluate_board() {
+    int score = 0;
 
-    if (wins) return 1000;
+    // Center-column control tends to open the most future lines.
+    for (int r = 0; r < ROWS; r++) {
+        Cell c = (Cell)board_[r * COLS + COLS / 2];
+        if (c == YELLOW) score += 3;
+        else if (c == RED) score -= 3;
+    }
 
-    // Prefer center columns
-    int center_score = COLS / 2 - abs(col - COLS / 2);
-    return center_score;
+    static const int dx[] = {1, 0, 1, 1};
+    static const int dy[] = {0, 1, 1, -1};
+    for (int r = 0; r < ROWS; r++) {
+        for (int c = 0; c < COLS; c++) {
+            for (int d = 0; d < 4; d++) {
+                int r2 = r + dy[d] * 3;
+                int c2 = c + dx[d] * 3;
+                if (r2 < 0 || r2 >= ROWS || c2 < 0 || c2 >= COLS) continue;
+
+                int yellow = 0, red = 0, empty = 0;
+                for (int k = 0; k < 4; k++) {
+                    int rr = r + dy[d] * k;
+                    int cc = c + dx[d] * k;
+                    Cell v = (Cell)board_[rr * COLS + cc];
+                    if (v == YELLOW) yellow++;
+                    else if (v == RED) red++;
+                    else empty++;
+                }
+                if (yellow > 0 && red > 0) continue;  // blocked window
+
+                if (yellow == 3 && empty == 1) score += 50;
+                else if (yellow == 2 && empty == 2) score += 10;
+                else if (yellow == 1 && empty == 3) score += 1;
+
+                if (red == 3 && empty == 1) score -= 50;
+                else if (red == 2 && empty == 2) score -= 10;
+                else if (red == 1 && empty == 3) score -= 1;
+            }
+        }
+    }
+    return score;
+}
+
+int Connect4::minimax(int depth, int alpha, int beta, bool maximizing) {
+    if (board_full()) return 0;
+    if (depth == 0) return evaluate_board();
+
+    int order[COLS];
+    c4_col_order(order, COLS);
+    Cell who = maximizing ? YELLOW : RED;
+
+    int best = maximizing ? -C4_WIN_SCORE * 2 : C4_WIN_SCORE * 2;
+    for (int i = 0; i < COLS; i++) {
+        int col = order[i];
+        int row = -1;
+        for (int r = ROWS - 1; r >= 0; r--) {
+            if (board_[r * COLS + col] == EMPTY) { row = r; break; }
+        }
+        if (row < 0) continue;  // column full
+
+        board_[row * COLS + col] = who;
+        int score;
+        if (check_win(row, col)) {
+            score = maximizing ? (C4_WIN_SCORE + depth) : -(C4_WIN_SCORE + depth);
+        } else {
+            score = minimax(depth - 1, alpha, beta, !maximizing);
+        }
+        board_[row * COLS + col] = EMPTY;
+
+        if (maximizing) {
+            if (score > best) best = score;
+            if (best > alpha) alpha = best;
+        } else {
+            if (score < best) best = score;
+            if (best < beta) beta = best;
+        }
+        if (alpha >= beta) break;  // prune
+    }
+    return best;
 }
 
 int Connect4::cpu_pick_col() {
-    // 1. Can CPU win?
-    for (int c = 0; c < COLS; c++) {
-        if (score_col(c, YELLOW) >= 1000) return c;
+    int order[COLS];
+    c4_col_order(order, COLS);
+
+    int best_col = -1;
+    int best_score = -C4_WIN_SCORE * 2;
+    int alpha = -C4_WIN_SCORE * 2, beta = C4_WIN_SCORE * 2;
+
+    for (int i = 0; i < COLS; i++) {
+        int col = order[i];
+        int row = -1;
+        for (int r = ROWS - 1; r >= 0; r--) {
+            if (board_[r * COLS + col] == EMPTY) { row = r; break; }
+        }
+        if (row < 0) continue;
+
+        board_[row * COLS + col] = YELLOW;
+        int score;
+        if (check_win(row, col)) {
+            score = C4_WIN_SCORE + C4_SEARCH_DEPTH;
+        } else {
+            score = minimax(C4_SEARCH_DEPTH - 1, alpha, beta, false);
+        }
+        board_[row * COLS + col] = EMPTY;
+
+        if (score > best_score) {
+            best_score = score;
+            best_col = col;
+        }
+        if (best_score > alpha) alpha = best_score;
     }
-    // 2. Must block player win?
-    for (int c = 0; c < COLS; c++) {
-        if (score_col(c, RED) >= 1000) return c;
-    }
-    // 3. Pick best scoring column
-    int best_col = -1, best_score = -9999;
-    for (int c = 0; c < COLS; c++) {
-        int s = score_col(c, YELLOW);
-        if (s > best_score) { best_score = s; best_col = c; }
-    }
-    // Add some randomness among equally good columns
-    int candidates[COLS];
-    int n = 0;
-    for (int c = 0; c < COLS; c++) {
-        if (score_col(c, YELLOW) == best_score) candidates[n++] = c;
-    }
-    return candidates[random(0, n)];
+    return best_col;
 }
 
 void Connect4::send_move(int col) {

@@ -178,7 +178,7 @@ lv_obj_t* DotsBoxes::create_board() {
     lv_obj_align(lbl_score_, LV_ALIGN_TOP_RIGHT, -10, 10);
 
     int ox = (320 - (DOTS - 1) * GAP) / 2;
-    int oy = 45;
+    int oy = 38;
 
     // Draw dots
     for (int r = 0; r < DOTS; r++) {
