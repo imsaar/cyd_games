@@ -36,7 +36,8 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 - **OTA Updates** — Custom web UI at `http://<IP>/update` showing device info, firmware version, and partition status
 - **Remote Diagnostics** — `GET http://<IP>/debug` returns reset reason (panic/watchdog/brownout/normal), free heap, and a crash-trace breadcrumb (last build checkpoint + LVGL memory stats), readable without a USB connection
 - **Dual OTA Partitions** — app0/app1 alternating, with automatic rollback protection
-- **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system, heartbeat + move-counter resync auto-heals dropped moves in turn-based games
+- **Network Multiplayer** — Works over WiFi (UDP) or ESP-NOW (no WiFi needed), invite/accept lobby system with automatic retry + acknowledgement (dropped invite/accept packets no longer strand one side), heartbeat + move-counter resync auto-heals dropped moves in turn-based games
+- **Play Again** — Every game's game-over screen offers a one-tap rematch alongside the return-to-menu option
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
 - **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
 - **Sound Effects** — Piezo buzzer feedback for moves, opponent moves, wins, losses, and startup
@@ -143,6 +144,8 @@ The transport is selected automatically at boot based on WiFi connectivity, or m
 3. Tap a peer to send an invite
 4. Other device sees an Accept/Decline popup
 5. Game starts once invite is accepted
+
+Invite and accept messages are retried automatically (every ~350ms, up to ~5s) until acknowledged, so a single dropped WiFi/ESP-NOW packet no longer leaves one device stuck in the lobby while the other has already started.
 
 Each game syncs state independently — turn-based games send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.
 

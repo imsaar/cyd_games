@@ -135,6 +135,25 @@ Announces are only sent when a game lobby is active (`discovery_set_game()` has 
 }
 ```
 
+#### 3a. Accept Ack (unicast)
+```json
+{
+  "type": "accept_ack",
+  "name": "CYD-A1B2"
+}
+```
+Sent by the host immediately on receiving an `accept` (including duplicate retries), so the guest's retry loop can stop. Not exposed to games — handled entirely inside `discovery.cpp`.
+
+#### 3b. Decline (unicast)
+```json
+{
+  "type": "decline",
+  "name": "CYD-C3D4",
+  "game": "tictactoe"
+}
+```
+Sent when the invitee taps Decline, so the host's pending invite stops retrying immediately instead of waiting out the retry window.
+
 #### 4. Game Data (unicast)
 ```json
 {
@@ -168,11 +187,14 @@ Device A (Host)                    Device B (Guest)
      │────── announce ──────────────────►│
      │                                   │
      │  A taps B's name in lobby list    │
-     │────── invite ────────────────────►│
-     │                                   │
+     │────── invite ────────────────────►│ (resent every ~350ms
+     │────── invite ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │  if no accept/decline,
+     │                                   │  up to ~5s)
      │                    B sees popup,  │
      │                    taps Accept    │
-     │◄──── accept ─────────────────────│
+     │◄──── accept ──────────────────────│ (resent every ~350ms
+     │◄──── accept ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│  until acked, up to ~5s)
+     │────── accept_ack ────────────────►│
      │                                   │
      │  Both set state="playing"         │
      │  Game begins                      │
@@ -180,6 +202,17 @@ Device A (Host)                    Device B (Guest)
      │◄────── move ─────────────────────►│
      │  (game data flows bidirectionally)│
 ```
+
+### Reliable Invite/Accept Handshake
+
+Plain UDP/ESP-NOW sends are fire-and-forget, so a single dropped `invite` or `accept` packet used to strand one side of the connection — e.g. the guest's `accept` gets lost, so the guest proceeds into the game (and its announced `state` flips to `"playing"`, making it disappear from the host's lobby list) while the host silently waits forever. `discovery.cpp` now retries both messages automatically:
+
+- `discovery_send_invite()` resends the invite every `HANDSHAKE_RETRY_MS` (350ms) until an `accept`/`decline` arrives from that peer, or `HANDSHAKE_MAX_RETRIES` (14, ~5s) is reached — at which point `discovery_on_invite_failed()` fires if a game registered one.
+- `discovery_send_accept()` resends the accept the same way until an `accept_ack` arrives from the host.
+- The host acks every `accept` it receives — including duplicates from retries — but only invokes the registered `accept_cb` once per invite session, so retried accepts don't re-run game-start logic twice.
+- `discovery_send_decline()` lets the guest notify the host immediately on Decline, instead of making the host wait out the full retry window.
+
+This handshake reliability is entirely internal to the discovery layer — individual games don't need any code changes to benefit from it beyond calling `discovery_send_decline()` from their Decline button handler.
 
 ### Callback Registration
 
@@ -193,9 +226,15 @@ discovery_on_game_data(my_data_handler);  // Game moves
 
 All three must be cleared (`nullptr`) in the game's `destroy()` method.
 
+A fourth, optional callback lets a game react to a failed handshake instead of relying on the lobby's periodic peer-list refresh:
+
+```cpp
+discovery_on_invite_failed(my_invite_failed_handler);  // Peer declined, or no response within ~5s
+```
+
 ## Limitations
 
-- **No delivery guarantee**: Both UDP and ESP-NOW are unreliable. Packets can be lost or arrive out of order.
+- **No delivery guarantee for game data**: Move/game-data packets over UDP and ESP-NOW are still unreliable — games that need it implement their own heartbeat/move-counter resync (see [Game Network Sync](game-network-sync.md)). The lobby's `invite`/`accept` handshake is the exception: it's retried and acknowledged by the discovery layer itself.
 - **No encryption**: ESP-NOW peer info has `encrypt = false`.
 - **250-byte packet limit**: ESP-NOW hardware constraint. Games must keep JSON compact or chunk large payloads.
 - **Fixed channel**: All ESP-NOW peers must use the same WiFi channel.

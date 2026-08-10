@@ -51,7 +51,7 @@ void ch_on_invite(const Peer& from) {
             lv_obj_t* scr = s_self->create_board();
             lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
             s_self->screen_ = scr;
-        } else { lv_msgbox_close(ch_invite_msgbox); ch_invite_msgbox = nullptr; }
+        } else { discovery_send_decline(ch_pending_ip); lv_msgbox_close(ch_invite_msgbox); ch_invite_msgbox = nullptr; }
     }, LV_EVENT_CLICKED, NULL);
 }
 
@@ -595,8 +595,12 @@ void Chess::show_result(const char* text, bool is_win) {
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, -15);
-    lv_obj_t* btn = ui_create_btn(ov, "Menu", 100, 36);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -15);
+    lv_obj_t* again_btn = ui_create_btn(ov, "Play Again", 120, 36);
+    lv_obj_align(again_btn, LV_ALIGN_BOTTOM_MID, -65, -15);
+    lv_obj_add_event_cb(again_btn, [](lv_event_t* e) { screen_manager_switch(screen_manager_current()); }, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* btn = ui_create_btn(ov, "Menu", 90, 36);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 70, -15);
     lv_obj_add_event_cb(btn, [](lv_event_t* e) { screen_manager_back_to_menu(); }, LV_EVENT_CLICKED, NULL);
 }
 

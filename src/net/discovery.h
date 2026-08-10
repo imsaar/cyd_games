@@ -20,9 +20,15 @@ void        discovery_set_game(const char* game, const char* state);
 void        discovery_clear_game();
 void        discovery_send_invite(IPAddress peer_ip);
 void        discovery_send_accept(IPAddress peer_ip);
+void        discovery_send_decline(IPAddress peer_ip);
+void        discovery_cancel_invite();  // stop retrying an outgoing invite (e.g. user backed out)
 void        discovery_send_game_data(IPAddress peer_ip, const char* json);
 void        discovery_on_invite(InviteCallback cb);
 void        discovery_on_accept(InviteCallback cb);
+// Fired on the inviter's side if the peer explicitly declines, or if no
+// accept/decline arrives after the invite retry window expires. Optional —
+// games may ignore it and rely on the lobby's periodic peer-list refresh.
+void        discovery_on_invite_failed(InviteCallback cb);
 void        discovery_on_game_data(GameDataCallback cb);
 int         discovery_peer_count();
 const Peer* discovery_get_peers();

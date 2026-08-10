@@ -78,6 +78,7 @@ void pict_on_invite(const Peer& from) {
             lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
             lv_obj_center(lbl);
         } else {
+            discovery_send_decline(pending_invite_ip);
             lv_msgbox_close(invite_msgbox);
             invite_msgbox = nullptr;
         }

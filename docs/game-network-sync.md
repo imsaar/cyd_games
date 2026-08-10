@@ -57,6 +57,16 @@ discovery_on_accept(my_on_accept);
 discovery_on_game_data(my_on_game_data);
 ```
 
+`discovery_send_invite()` and `discovery_send_accept()` are retried and acknowledged automatically by the discovery layer (see [ESP-NOW Transport Design](esp-now-transport.md#reliable-inviteaccept-handshake)) — games don't need to do anything extra to benefit. The one thing every game's invite popup should do is call `discovery_send_decline(peer_ip)` from its Decline button handler, so the host's pending invite stops retrying immediately:
+
+```cpp
+} else {
+    discovery_send_decline(pending_ip);
+    lv_msgbox_close(invite_msgbox);
+    invite_msgbox = nullptr;
+}
+```
+
 ### Cleanup on Destroy
 
 ```cpp
