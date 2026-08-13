@@ -168,13 +168,18 @@ void MyGame::destroy() {
 ```
 - `v`: Array of 12 card values (6 pairs)
 
+**Sync ack (guest to host, once the board is built):**
+```json
+{"type": "move", "game": "memory", "a": "sync_ack"}
+```
+
 **Flip message:**
 ```json
 {"type": "move", "game": "memory", "action": "flip", "idx": 7}
 ```
 - `idx`: Card index 0-11
 
-**Sync pattern:** Host generates the randomized board layout and sends it to the guest before the game starts. During play, each flip sends a message. Match/mismatch logic runs identically on both sides.
+**Sync pattern:** Host generates the randomized board layout and sends it to the guest before the game starts; the guest doesn't create its board (and stays on the lobby screen showing "Waiting for host to start...") until that message arrives. Because the guest is the only one waiting on a single message rather than a stream, the sync/ack pair gets its own resend path instead of piggybacking on the generic heartbeat: the host keeps resending the layout every heartbeat tick until `sync_ack` arrives, and — to cut worst-case recovery to one guest heartbeat instead of two — a guest heartbeat received before the ack also triggers an immediate resend. During play, each flip sends a message and match/mismatch logic runs identically on both sides.
 
 ---
 
@@ -311,6 +316,44 @@ ESP-NOW has a **250-byte hard limit**. Here's how each game fits:
 | Pictionary (stroke chunk) | ~230 bytes | Yes (28 pts) |
 | Pictionary (control) | ~70 bytes | Yes |
 
+### StaticJsonDocument Sizing (parsing workspace ≠ wire size)
+
+The 250-byte ESP-NOW limit above is about the *serialized* message on the
+wire. `StaticJsonDocument<N>` capacity is a completely separate budget for
+the *parsing workspace*, and it's easy to undersize without noticing —
+this bit Memory Match's board sync for a while (guest never received it,
+every single time, with no error visible anywhere but the serial log).
+
+- Every object key/value pair and every array element costs one
+  `VariantSlot` — 16 bytes on this (32-bit) target — regardless of the
+  value's actual size. A 4-key object wrapping a 12-element array is
+  `(4 + 12) * 16 = 256 bytes` in slots **alone**, before a single byte of
+  string data.
+- `deserializeJson(doc, buf)` on a **mutable `char*`** can zero-copy —
+  strings just point back into `buf`, no extra cost. `deserializeJson(doc,
+  json)` on a **`const char*`** cannot; every key and string value found
+  during parsing gets duplicated into the document's pool on top of the
+  slot cost.
+- `discovery.cpp`'s `handle_packet()` gets the mutable buffer (zero-copy,
+  cheap); every game's `onNetworkData(const char* json)` gets the `const`
+  one (must copy). The same JSON can fit comfortably in one and silently
+  fail `NoMemory` in the other.
+- Failure is silent unless you check for it: `deserializeJson` returns a
+  `DeserializationError` that's truthy on failure, and the common
+  `if (deserializeJson(doc, json)) return;` pattern used everywhere here
+  just drops the message with zero indication why. If a message type is
+  never arriving, log `err.c_str()` before assuming it's a network/packet
+  problem — worth checking before adding retry logic, since retrying a
+  message that fails to parse for its own size just fails identically
+  every time.
+- Rule of thumb: size for `JSON_OBJECT_SIZE(keys) + JSON_ARRAY_SIZE(elements)`
+  (16 bytes each) plus real headroom for string duplication — Memory
+  Match's sync and Pictionary's `onNetworkData` both moved from `256` to
+  `384` for this reason. Discovery's own `handle_packet()` parser was
+  bumped the same way even though it uses the mutable buffer, since it has
+  to parse the whole payload (any game's, including array/string-heavy
+  ones) just to read `"type"`.
+
 ## Reliability Considerations
 
 Since both UDP and ESP-NOW are unreliable:
@@ -318,7 +361,8 @@ Since both UDP and ESP-NOW are unreliable:
 1. **Turn-based games** use a **heartbeat + move-counter** pattern to auto-recover from lost moves (see below).
 2. **Pong** sends state at 20fps — a lost packet is immediately superseded by the next update 50ms later.
 3. **Pictionary** uses periodic full syncs (every 3 seconds) to recover from incremental packet loss.
-4. **Peer disconnect detection** still relies on the discovery layer's 6-second announce timeout rather than application-level heartbeats.
+4. **Peer disconnect detection** still relies on the discovery layer's 6-second announce timeout rather than application-level heartbeats — this is the *fallback* for a silent disappearance, distinct from the explicit `abandon` message below, which is faster and gives a proper "opponent left" screen instead of the game just going quiet.
+5. **The `abandon` check must run before any field-dependent early return.** Every game's `destroy()` sends `{"type": "move", "game": "<game>", "abandon": true}` — a minimal envelope with no `"a"`/`"action"` field. Pictionary's `onNetworkData` used to read `doc["a"]` and `return` if absent *before* checking `doc["abandon"]`, so the abandon notice was silently dropped every time and the other side's game just kept running with no indication the opponent had left. Check `abandon` first, unconditionally, like every other game already does.
 
 ### Heartbeat & Move-Counter Resync (turn-based games)
 

@@ -31,6 +31,7 @@ void mm_on_invite(const Peer& from) {
     lv_obj_add_event_cb(btnm, [](lv_event_t* e) {
         uint16_t btn_id = lv_msgbox_get_active_btn(mm_invite_msgbox);
         if (btn_id == 0) {
+            Serial.println("[MM] guest: accepted, waiting for board sync");
             discovery_send_accept(mm_pending_ip);
             s_self->peer_ip_ = mm_pending_ip;
             s_self->mode_ = MemoryMatch::MODE_NETWORK;
@@ -40,7 +41,13 @@ void mm_on_invite(const Peer& from) {
             discovery_set_game("memory", "playing");
             lv_msgbox_close(mm_invite_msgbox);
             mm_invite_msgbox = nullptr;
-            // Don't create board yet — wait for host to send board sync
+            // Don't create board yet — wait for host to send board sync.
+            // Show a clear waiting status instead of leaving the lobby
+            // list frozen looking like the tap did nothing.
+            if (s_self->lobby_list_) {
+                lv_obj_clean(s_self->lobby_list_);
+                lv_list_add_text(s_self->lobby_list_, "Waiting for host to start...");
+            }
         } else {
             discovery_send_decline(mm_pending_ip);
             lv_msgbox_close(mm_invite_msgbox);
@@ -51,6 +58,7 @@ void mm_on_invite(const Peer& from) {
 
 void mm_on_accept(const Peer& from) {
     if (!s_self || s_self->mode_ != MemoryMatch::MODE_LOBBY) return;
+    Serial.println("[MM] host: accept received, creating board + sending sync");
     s_self->peer_ip_ = from.ip;
     s_self->mode_ = MemoryMatch::MODE_NETWORK;
     s_self->is_p1_ = true;
@@ -404,21 +412,31 @@ void MemoryMatch::send_flip(int idx) {
 }
 
 void MemoryMatch::send_board_sync() {
-    // Host sends the card layout to guest so both have same board
-    StaticJsonDocument<256> doc;
+    // Host sends the card layout to guest so both have same board.
+    // 4 root keys + a 12-element array = 16 ArduinoJson slots, which alone
+    // is exactly 256 bytes (16 * sizeof(VariantSlot)) — a StaticJsonDocument<256>
+    // has zero bytes left over, so this must stay comfortably above that.
+    StaticJsonDocument<384> doc;
     doc["type"] = "move";
     doc["game"] = "memory";
     doc["action"] = "sync";
     JsonArray arr = doc.createNestedArray("v");
     for (int i = 0; i < NUM_CARDS; i++) arr.add(values_[i]);
-    char buf[256];
+    char buf[384];
     serializeJson(doc, buf, sizeof(buf));
     discovery_send_game_data(peer_ip_, buf);
 }
 
 void MemoryMatch::onNetworkData(const char* json) {
-    StaticJsonDocument<256> doc;
-    if (deserializeJson(doc, json)) return;
+    // Must be large enough for the "sync" message parsed from a const
+    // char* (no zero-copy) — 4 root keys + a 12-element array already
+    // costs 256 bytes in slots alone, before any string data is copied in.
+    StaticJsonDocument<384> doc;
+    DeserializationError err = deserializeJson(doc, json);
+    if (err) {
+        Serial.printf("[MM] onNetworkData: parse failed (%s): %s\n", err.c_str(), json);
+        return;
+    }
     const char* game = doc["game"];
     if (!game || strcmp(game, "memory") != 0) return;
     if (doc["abandon"] | false) {
@@ -429,6 +447,14 @@ void MemoryMatch::onNetworkData(const char* json) {
 
     const char* a_short = doc["a"] | "";
     if (strcmp(a_short, "hb") == 0) {
+        if (is_p1_ && !guest_board_acked_) {
+            // Guest is alive but never confirmed the board — resend right
+            // away instead of waiting for our own heartbeat timer, so
+            // recovery from a dropped sync is as fast as one guest hb tick.
+            Serial.println("[MM] host: guest hb before ack, resending sync");
+            send_board_sync();
+            return;
+        }
         uint32_t peer_mc = doc["mc"] | 0;
         if (peer_mc < net_mc_ && net_last_move_[0]) {
             discovery_send_game_data(peer_ip_, net_last_move_);
@@ -437,6 +463,7 @@ void MemoryMatch::onNetworkData(const char* json) {
     }
     if (strcmp(a_short, "sync_ack") == 0) {
         // Guest confirms it built the board — host can stop resending it.
+        Serial.println("[MM] host: got sync_ack");
         guest_board_acked_ = true;
         return;
     }
@@ -447,6 +474,7 @@ void MemoryMatch::onNetworkData(const char* json) {
         // Guest receives board layout from host. This is idempotent —
         // it may arrive more than once if the host is retrying because
         // an earlier ack got lost, so just re-apply and re-ack.
+        Serial.printf("[MM] guest: got sync, have_board=%d\n", cards_[0] != nullptr);
         JsonArray arr = doc["v"];
         if (arr.size() == NUM_CARDS) {
             for (int i = 0; i < NUM_CARDS; i++) values_[i] = arr[i];
@@ -496,10 +524,10 @@ lv_obj_t* MemoryMatch::create_board() {
     lv_obj_set_style_text_font(lbl_moves_, &lv_font_montserrat_12, 0);
     lv_obj_align(lbl_moves_, LV_ALIGN_TOP_MID, 20, 10);
 
-    if (mode_ == MODE_SOLO || mode_ == MODE_LOCAL) {
+    if (mode_ == MODE_SOLO || mode_ == MODE_LOCAL || (mode_ == MODE_NETWORK && is_p1_)) {
         shuffle();
     }
-    // For network mode, values_ are set by host or received via sync
+    // Network guest: values_ arrive via sync from the host, don't shuffle locally
 
     // Reset per-game state (but not values_ for network guest)
     for (int i = 0; i < NUM_CARDS; i++) {

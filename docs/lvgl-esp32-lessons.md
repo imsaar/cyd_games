@@ -154,3 +154,47 @@ score_[0] = doc["s0"] | score_[0];
 ```
 
 The serialized JSON output buffer (`char buf[N]`) is separate from the document pool — size them independently.
+
+**Parsing from `const char*` costs more than the wire size suggests.** `deserializeJson(doc, buf)` on a *mutable* `char*` can zero-copy — string values just point back into `buf`. `deserializeJson(doc, json)` on a `const char*` (the signature every game's `onNetworkData(const char* json)` uses) cannot: every key and string value found during parsing gets **duplicated** into the pool on top of the per-slot cost. A 4-key object wrapping a 12-element array is `(4+12)*16 = 256` bytes in slots alone, with zero room left for that duplication — `StaticJsonDocument<256>` parsing it from a `const char*` fails `NoMemory` on every single attempt, not intermittently. This isn't a network reliability problem and retry logic won't fix it. See [Game Network Sync → StaticJsonDocument Sizing](game-network-sync.md#staticjsondocument-sizing-parsing-workspace--wire-size) for the full writeup (this bit Memory Match's board-sync message for a while). Always check the `DeserializationError` return value and log it rather than assuming a silent parse failure is a dropped packet.
+
+## "Dark Mode" Is a Hardware Panel Inversion, Not a Palette Swap
+
+This project's Dark/Light Mode toggle doesn't swap between two color palettes — it calls `tft.invertDisplay(bool)`, a hardware feature that complements every RGB channel of every pixel the panel outputs. All the app's `UI_COLOR_*` constants are one fixed dark-theme palette; Light Mode is achieved for free by inverting the whole picture, which happens to work for ordinary UI chrome since inverting a dark-bg/light-text pair still gives light-bg/dark-text — direction preserved, contrast preserved, zero extra code.
+
+It breaks down for any color meant to carry an **absolute, mode-independent** meaning rather than a relative contrast pairing — e.g. a chess/checkers piece belonging to "the white player" must always render white, on both Dark and Light Mode, and on both devices in a network game regardless of which color each side is. A literal `lv_color_hex(0xffffff)` looks white in Dark Mode but gets hardware-inverted to look black in Light Mode, silently swapping which player's pieces look like which color.
+
+Fix: pre-complement such colors so the hardware inversion cancels back out to the intended color.
+
+```cpp
+// src/ui/ui_common.cpp
+lv_color_t ui_absolute_color_hex(uint32_t hex) {
+    if (prefs_get_inverted()) return lv_color_hex(hex);       // Dark Mode: as-authored
+    return lv_color_hex(0xFFFFFF - (hex & 0xFFFFFF));          // Light Mode: pre-invert
+}
+```
+
+Board/background decoration colors that don't carry this kind of absolute meaning (e.g. chess's cream/brown squares) don't need this — they're fine relying on the same automatic contrast-preservation as the rest of the UI.
+
+## Per-Player Board Orientation (Network 2P)
+
+For a network 2-player board game, each device should show its own pieces starting closest to the bottom, mirrored for the other player — but move logic, win-checking, and the wire protocol need a single, consistent coordinate space shared by both sides. Solving this by physically storing the board pre-flipped per device would require translating every move index sent over the network; instead, keep the board array in **one canonical orientation** always (fixed rows for each side, e.g. White always at logical rows 6-7) and apply the flip **only at the render/input boundary**:
+
+```cpp
+// Chess: a runtime index transform, applied wherever a logical square
+// touches the screen — drawing, highlighting, and touch input.
+int vidx(int idx) const { return flipped_ ? 63 - idx : idx; }
+// draw_piece(idx) writes into piece_labels_[vidx(idx)]
+// cell_cb touch handler: if (flipped_) idx = 63 - idx;  (before using idx)
+```
+
+```cpp
+// Checkers: the same idea applied at cell-creation time instead — bake
+// the flip into each cell's screen position once, keyed by the same
+// canonical idx used everywhere else (cell_objs_[idx], board_[idx]).
+int dr = my_color_red_ ? r : 7 - r;
+int dc = my_color_red_ ? c : 7 - c;
+lv_obj_set_pos(cell, dc * CELL, dr * CELL);   // cell_objs_[idx] unchanged
+// touch handler inverts the same way: if (!my_color_red_) { row=7-row; col=7-col; }
+```
+
+Either approach works — pick whichever fits how the game already indexes its screen objects. The key invariant: `send_move()`/`onNetworkData()` and all win/legality logic only ever see the canonical (unflipped) index; the transform exists solely between that index and screen pixels, applied identically (and inversely) in both directions on both devices.

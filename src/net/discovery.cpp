@@ -139,7 +139,11 @@ static void handle_packet(char* buf, int len, IPAddress remote) {
     char raw[256];
     memcpy(raw, buf, len + 1);
 
-    StaticJsonDocument<256> doc;
+    // 384, not 256: a handful of games embed a small array/blob (e.g.
+    // Memory Match's 12-element board layout) that eats all 256 bytes in
+    // slots alone with nothing left for margin — this only sniffs "type"
+    // but still has to parse the whole payload to get there.
+    StaticJsonDocument<384> doc;
     if (deserializeJson(doc, buf)) return;
 
     const char* type = doc["type"];

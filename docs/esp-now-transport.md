@@ -236,7 +236,7 @@ discovery_on_invite_failed(my_invite_failed_handler);  // Peer declined, or no r
 
 - **No delivery guarantee for game data**: Move/game-data packets over UDP and ESP-NOW are still unreliable — games that need it implement their own heartbeat/move-counter resync (see [Game Network Sync](game-network-sync.md)). The lobby's `invite`/`accept` handshake is the exception: it's retried and acknowledged by the discovery layer itself.
 - **No encryption**: ESP-NOW peer info has `encrypt = false`.
-- **250-byte packet limit**: ESP-NOW hardware constraint. Games must keep JSON compact or chunk large payloads.
+- **250-byte packet limit**: ESP-NOW hardware constraint. Games must keep JSON compact or chunk large payloads. Note this is the *wire* limit — the `StaticJsonDocument<N>` parsing workspace on the receiving end is a separate, easy-to-undersize budget (a message can be well under 250 bytes on the wire and still fail to parse from a `const char*`); see [Game Network Sync → StaticJsonDocument Sizing](game-network-sync.md#staticjsondocument-sizing-parsing-workspace--wire-size).
 - **Fixed channel**: All ESP-NOW peers must use the same WiFi channel.
 - **No NAT traversal**: UDP multiplayer only works on the same LAN.
 - **Single game at a time**: Only one set of discovery callbacks can be active.

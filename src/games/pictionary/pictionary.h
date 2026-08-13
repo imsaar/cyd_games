@@ -83,7 +83,7 @@ private:
     void start_guessing();
     void show_wait_guess();     // network drawer waits
     void show_result(bool correct);
-    void show_gameover();
+    void show_gameover(bool opponent_left = false);
     void clear_ui();
     void pick_word();
     void send_strokes();

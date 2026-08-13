@@ -360,7 +360,15 @@ void Pictionary::next_cb(lv_event_t* e) {
 
 void Pictionary::play_again_cb(lv_event_t* e) {
     Pictionary* self = (Pictionary*)lv_event_get_user_data(e);
-    self->show_menu();
+    // Drop any leftover network registration from the game that just
+    // ended so this device stops announcing itself while sitting at the
+    // mode-select screen (mirrors mode_local_cb's cleanup).
+    self->network_mode_ = false;
+    discovery_clear_game();
+    discovery_on_invite(nullptr);
+    discovery_on_accept(nullptr);
+    discovery_on_game_data(nullptr);
+    self->show_mode_select();
 }
 
 void Pictionary::mode_local_cb(lv_event_t* e) {
@@ -513,16 +521,20 @@ void Pictionary::destroy() {
 // ── Network data handling ──
 
 void Pictionary::onNetworkData(const char* json) {
-    StaticJsonDocument<256> doc;
+    // Full-sync stroke chunks carry up to ~168 hex chars in "h" plus
+    // type/game/a/o/t keys; parsed from a const char* (string gets
+    // duplicated, no zero-copy), that can run close to a 256-byte
+    // ceiling, so give it real headroom.
+    StaticJsonDocument<384> doc;
     if (deserializeJson(doc, json)) return;
     const char* game = doc["game"];
     if (!game || strcmp(game, "pictionary") != 0) return;
-    const char* action = doc["a"];
-    if (!action) return;
     if (doc["abandon"] | false) {
-        show_gameover();
+        show_gameover(true);
         return;
     }
+    const char* action = doc["a"];
+    if (!action) return;
 
     if (strcmp(action, "setup") == 0) {
         // Guest receives round setup from host
@@ -1155,12 +1167,18 @@ void Pictionary::show_result(bool correct) {
     }
 }
 
-void Pictionary::show_gameover() {
+void Pictionary::show_gameover(bool opponent_left) {
     clear_ui();
     phase_ = PHASE_GAMEOVER;
 
+    // Also stop any further network traffic — destroy() would otherwise
+    // send its own "abandon" to a peer that just told us it already left.
+    if (opponent_left) network_mode_ = false;
+
     // Determine win/lose for sound
-    if (network_mode_) {
+    if (opponent_left) {
+        sound_lose();
+    } else if (network_mode_) {
         int my_idx = is_host_ ? 0 : 1;
         int opp_idx = is_host_ ? 1 : 0;
         if (score_[my_idx] > score_[opp_idx]) sound_win();
@@ -1171,18 +1189,20 @@ void Pictionary::show_gameover() {
         sound_gameover();
     }
 
-    lv_obj_t* title = ui_create_title(screen_, "Game Over!");
+    lv_obj_t* title = ui_create_title(screen_, opponent_left ? "Opponent Left" : "Game Over!");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
     lv_obj_t* winner = lv_label_create(screen_);
-    if (score_[0] > score_[1]) {
+    if (opponent_left) {
+        lv_label_set_text(winner, "They disconnected mid-game");
+    } else if (score_[0] > score_[1]) {
         lv_label_set_text(winner, "Player 1 Wins!");
     } else if (score_[1] > score_[0]) {
         lv_label_set_text(winner, "Player 2 Wins!");
     } else {
         lv_label_set_text(winner, "It's a Tie!");
     }
-    lv_obj_set_style_text_color(winner, UI_COLOR_SUCCESS, 0);
+    lv_obj_set_style_text_color(winner, opponent_left ? UI_COLOR_ACCENT : UI_COLOR_SUCCESS, 0);
     lv_obj_set_style_text_font(winner, &lv_font_montserrat_20, 0);
     lv_obj_align(winner, LV_ALIGN_CENTER, 0, -20);
 
