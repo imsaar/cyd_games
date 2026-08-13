@@ -153,6 +153,9 @@ static void handle_packet(char* buf, int len, IPAddress remote) {
             doc["state"] | ""
         );
     } else if (strcmp(type, "invite") == 0) {
+        Serial.printf("[Discovery] Invite from %s (%s), game=%s, invite_cb=%s\n",
+                      doc["name"] | "?", remote.toString().c_str(),
+                      doc["game"] | "?", invite_cb ? "set" : "NULL");
         if (invite_cb) {
             Peer from;
             strncpy(from.name, doc["name"] | "?", sizeof(from.name) - 1);
@@ -369,6 +372,8 @@ static void send_accept_ack(IPAddress ip) {
 }
 
 void discovery_send_invite(IPAddress peer_ip) {
+    Serial.printf("[Discovery] Sending invite to %s, game=%s\n",
+                  peer_ip.toString().c_str(), my_game);
     pending_invite.active = true;
     pending_invite.ip = peer_ip;
     pending_invite.next_retry_ms = millis() + HANDSHAKE_RETRY_MS;
@@ -376,6 +381,8 @@ void discovery_send_invite(IPAddress peer_ip) {
     accept_handled_valid = false;  // fresh invite session — allow a new accept to be handled
     send_invite_packet(peer_ip);
 }
+
+bool discovery_invite_pending() { return pending_invite.active; }
 
 void discovery_send_accept(IPAddress peer_ip) {
     pending_accept.active = true;

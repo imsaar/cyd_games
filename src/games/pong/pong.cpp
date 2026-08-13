@@ -71,6 +71,15 @@ void pong_on_game_data(const char* json) {
     s_self->onNetworkData(json);
 }
 
+// Fired if the peer declines, or doesn't respond within the retry window.
+// Without this, the lobby just silently resumes showing the peer list on
+// its next 2s refresh with no explanation of what happened.
+void pong_on_invite_failed(const Peer& from) {
+    if (!s_self || !s_self->lobby_list_) return;
+    lv_obj_clean(s_self->lobby_list_);
+    lv_list_add_text(s_self->lobby_list_, "No response - try again");
+}
+
 // ── Lobby ──
 
 void pong_lobby_peer_cb(lv_event_t* e) {
@@ -421,6 +430,7 @@ void Pong::mode_local_cb(lv_event_t* e) {
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
     discovery_on_game_data(nullptr);
+    discovery_on_invite_failed(nullptr);
 
     lv_obj_t* scr = s_self->create_game_screen();
     s_self->screen_ = scr;
@@ -430,10 +440,12 @@ void Pong::mode_local_cb(lv_event_t* e) {
 
 void Pong::mode_online_cb(lv_event_t* e) {
     if (!s_self) return;
+    s_self->is_local_ = false;
     discovery_set_game("pong", "waiting");
     discovery_on_invite(pong_on_invite);
     discovery_on_accept(pong_on_accept);
     discovery_on_game_data(pong_on_game_data);
+    discovery_on_invite_failed(pong_on_invite_failed);
 
     lv_obj_t* scr = s_self->create_lobby();
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
@@ -470,8 +482,10 @@ lv_obj_t* Pong::createScreen() {
 }
 
 void Pong::update() {
-    // Lobby refresh
-    if (lobby_list_ && !playing_) {
+    // Lobby refresh — skip while an invite is in flight so the "Invite
+    // sent, waiting..." status isn't clobbered by the peer list reappearing
+    // every 2s (looked like taps were doing nothing).
+    if (lobby_list_ && !playing_ && !discovery_invite_pending()) {
         static uint32_t last_refresh = 0;
         if (millis() - last_refresh > 2000) {
             last_refresh = millis();
@@ -527,6 +541,7 @@ void Pong::destroy() {
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
     discovery_on_game_data(nullptr);
+    discovery_on_invite_failed(nullptr);
     s_self = nullptr;
     screen_ = nullptr;
     court_ = nullptr;

@@ -1,5 +1,6 @@
 #include "ui_common.h"
 #include "screen_manager.h"
+#include "../hal/prefs.h"
 
 lv_obj_t* ui_create_screen() {
     lv_obj_t* scr = lv_obj_create(NULL);
@@ -54,4 +55,9 @@ lv_obj_t* ui_create_title(lv_obj_t* parent, const char* text) {
     lv_obj_set_style_text_color(lbl, UI_COLOR_ACCENT, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
     return lbl;
+}
+
+lv_color_t ui_absolute_color_hex(uint32_t hex) {
+    if (prefs_get_inverted()) return lv_color_hex(hex);
+    return lv_color_hex(0xFFFFFF - (hex & 0xFFFFFF));
 }

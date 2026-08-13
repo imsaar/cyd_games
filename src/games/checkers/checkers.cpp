@@ -122,6 +122,7 @@ void Checkers::mode_online_cb(lv_event_t* e) {
 
 lv_obj_t* Checkers::create_mode_select() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
     lv_obj_t* title = ui_create_title(scr, "Checkers");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
@@ -139,6 +140,7 @@ lv_obj_t* Checkers::create_mode_select() {
 
 lv_obj_t* Checkers::create_lobby() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
     lv_obj_t* title = ui_create_title(scr, "Checkers - Find Opponent");
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
@@ -180,6 +182,7 @@ void Checkers::init_pieces() {
 
 lv_obj_t* Checkers::create_board() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
 
     lbl_status_ = lv_label_create(scr);
@@ -202,17 +205,22 @@ lv_obj_t* Checkers::create_board() {
     lv_obj_add_flag(bg, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(bg, cell_cb, LV_EVENT_CLICKED, NULL);
 
-    // Draw cells
+    // Draw cells. Board_[] indices always stay in the canonical orientation
+    // (black home rows 0-2, red home rows 5-7) so game logic/network moves
+    // are unaffected — only the on-screen placement flips per player, so
+    // each device shows its own color starting closest to the bottom.
     for (int r = 0; r < 8; r++) {
         for (int c = 0; c < 8; c++) {
             int idx = r * 8 + c;
+            int dr = my_color_red_ ? r : 7 - r;
+            int dc = my_color_red_ ? c : 7 - c;
             bool dark = (r + c) % 2 == 1;
             lv_obj_t* cell = lv_obj_create(bg);
             lv_obj_remove_style_all(cell);
             lv_obj_set_size(cell, CELL, CELL);
-            lv_obj_set_pos(cell, c * CELL, r * CELL);
+            lv_obj_set_pos(cell, dc * CELL, dr * CELL);
             lv_obj_set_style_bg_color(cell,
-                dark ? lv_color_hex(0xcc2222) : lv_color_hex(0x111111), 0);
+                dark ? lv_color_hex(0x8b6e4e) : lv_color_hex(0xeecea2), 0);
             lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
             lv_obj_clear_flag(cell, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
             cell_objs_[idx] = cell;
@@ -252,7 +260,7 @@ void Checkers::draw_piece(int idx) {
     bool is_red = val > 0;
     bool is_king = (val == RED_KING || val == BLACK_KING);
     lv_obj_set_style_bg_color(p,
-        is_red ? lv_color_hex(0xeeeeee) : lv_color_hex(0x222222), 0);
+        is_red ? ui_absolute_color_hex(0xeeeeee) : ui_absolute_color_hex(0x222222), 0);
     if (is_king) {
         lv_obj_set_style_border_color(p, UI_COLOR_WARNING, 0);
         lv_obj_set_style_border_width(p, 2, 0);
@@ -265,7 +273,7 @@ void Checkers::clear_highlights() {
     for (int i = 0; i < 64; i++) {
         bool dark = (i / 8 + i % 8) % 2 == 1;
         lv_obj_set_style_bg_color(cell_objs_[i],
-            dark ? lv_color_hex(0xcc2222) : lv_color_hex(0x111111), 0);
+            dark ? lv_color_hex(0x8b6e4e) : lv_color_hex(0xeecea2), 0);
     }
 }
 
@@ -467,6 +475,7 @@ void Checkers::cell_cb(lv_event_t* e) {
     int col = (p.x - board_ox_) / CELL;
     int row = (p.y - board_oy_) / CELL;
     if (col < 0 || col >= 8 || row < 0 || row >= 8) return;
+    if (!s_self->my_color_red_) { row = 7 - row; col = 7 - col; }
     int idx = row * 8 + col;
 
     // If in multi-jump, only allow moving the jumping piece

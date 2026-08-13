@@ -5,6 +5,7 @@
 class Pong : public GameBase {
     friend void pong_on_invite(const Peer& from);
     friend void pong_on_accept(const Peer& from);
+    friend void pong_on_invite_failed(const Peer& from);
     friend void pong_on_game_data(const char* json);
     friend void pong_lobby_peer_cb(lv_event_t* e);
 

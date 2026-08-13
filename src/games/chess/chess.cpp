@@ -122,6 +122,7 @@ void Chess::mode_online_cb(lv_event_t* e) {
 
 lv_obj_t* Chess::create_mode_select() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
     lv_obj_t* t = ui_create_title(scr, "Chess");
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
@@ -139,6 +140,7 @@ lv_obj_t* Chess::create_mode_select() {
 
 lv_obj_t* Chess::create_lobby() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
     lv_obj_t* t = ui_create_title(scr, "Chess - Find Opponent");
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 8);
@@ -171,6 +173,7 @@ void Chess::init_pieces() {
 
 lv_obj_t* Chess::create_board() {
     lv_obj_t* scr = ui_create_screen();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     ui_create_back_btn(scr);
 
     lbl_status_ = lv_label_create(scr);
@@ -231,9 +234,9 @@ void Chess::draw_piece(int idx) {
     if (!lbl) return;
     lv_label_set_text(lbl, piece_sym(board_[idx]));
     if (board_[idx] > 0) {
-        lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), 0);
+        lv_obj_set_style_text_color(lbl, ui_absolute_color_hex(0xffffff), 0);
     } else if (board_[idx] < 0) {
-        lv_obj_set_style_text_color(lbl, lv_color_hex(0x111111), 0);
+        lv_obj_set_style_text_color(lbl, ui_absolute_color_hex(0x111111), 0);
     }
 }
 
@@ -489,7 +492,7 @@ void Chess::cell_cb(lv_event_t* e) {
         s_self->highlight_cell(idx, UI_COLOR_WARNING);
         // Show legal move hints as outlines in the piece's color
         lv_color_t hint_color = s_self->is_white(idx)
-            ? lv_color_hex(0xffffff) : lv_color_hex(0x111111);
+            ? ui_absolute_color_hex(0xffffff) : ui_absolute_color_hex(0x111111);
         for (int t = 0; t < 64; t++) {
             if (s_self->is_valid_move(idx, t, true)) {
                 outline_cell(s_self->cell_objs_[s_self->vidx(t)], hint_color);

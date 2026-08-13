@@ -56,6 +56,7 @@ void mm_on_accept(const Peer& from) {
     s_self->is_p1_ = true;
     s_self->my_turn_ = true;
     s_self->p1_turn_ = true;
+    s_self->guest_board_acked_ = false;
     discovery_set_game("memory", "playing");
 
     // Host creates the board and sends layout to guest
@@ -68,6 +69,15 @@ void mm_on_accept(const Peer& from) {
 void mm_on_game_data(const char* json) {
     if (!s_self) return;
     s_self->onNetworkData(json);
+}
+
+// Fired if the peer declines, or doesn't respond within the retry window.
+// Without this, the lobby just silently resumes showing the peer list on
+// its next 2s refresh with no explanation of what happened.
+void mm_on_invite_failed(const Peer& from) {
+    if (!s_self || !s_self->lobby_list_) return;
+    lv_obj_clean(s_self->lobby_list_);
+    lv_list_add_text(s_self->lobby_list_, "No response - try again");
 }
 
 void mm_lobby_peer_cb(lv_event_t* e) {
@@ -123,6 +133,7 @@ void MemoryMatch::mode_online_cb(lv_event_t* e) {
     discovery_on_invite(mm_on_invite);
     discovery_on_accept(mm_on_accept);
     discovery_on_game_data(mm_on_game_data);
+    discovery_on_invite_failed(mm_on_invite_failed);
     lv_obj_t* scr = s_self->create_lobby();
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
@@ -424,12 +435,18 @@ void MemoryMatch::onNetworkData(const char* json) {
         }
         return;
     }
+    if (strcmp(a_short, "sync_ack") == 0) {
+        // Guest confirms it built the board — host can stop resending it.
+        guest_board_acked_ = true;
+        return;
+    }
 
     const char* action = doc["action"] | "";
 
     if (strcmp(action, "sync") == 0) {
-        // Guest receives board layout from host. This is the one-shot
-        // setup message (no mc dedupe — idempotent re-apply is fine).
+        // Guest receives board layout from host. This is idempotent —
+        // it may arrive more than once if the host is retrying because
+        // an earlier ack got lost, so just re-apply and re-ack.
         JsonArray arr = doc["v"];
         if (arr.size() == NUM_CARDS) {
             for (int i = 0; i < NUM_CARDS; i++) values_[i] = arr[i];
@@ -440,6 +457,8 @@ void MemoryMatch::onNetworkData(const char* json) {
             lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
             screen_ = scr;
         }
+        discovery_send_game_data(peer_ip_,
+            "{\"type\":\"move\",\"game\":\"memory\",\"a\":\"sync_ack\"}");
         return;
     }
 
@@ -548,16 +567,25 @@ void MemoryMatch::update() {
     if (mode_ == MODE_NETWORK && !game_done_) {
         if (millis() - net_last_hb_ms_ > NET_HB_INTERVAL_MS) {
             net_last_hb_ms_ = millis();
-            char hb[80];
-            snprintf(hb, sizeof(hb),
-                "{\"type\":\"move\",\"game\":\"memory\",\"a\":\"hb\",\"mc\":%u}",
-                (unsigned)net_mc_);
-            discovery_send_game_data(peer_ip_, hb);
+            if (is_p1_ && !guest_board_acked_) {
+                // Guest hasn't confirmed it received the board layout yet
+                // (its accept, or our sync, may have been dropped) — keep
+                // resending the layout instead of a plain heartbeat.
+                send_board_sync();
+            } else {
+                char hb[80];
+                snprintf(hb, sizeof(hb),
+                    "{\"type\":\"move\",\"game\":\"memory\",\"a\":\"hb\",\"mc\":%u}",
+                    (unsigned)net_mc_);
+                discovery_send_game_data(peer_ip_, hb);
+            }
         }
     }
 
-    // Lobby refresh
-    if (mode_ == MODE_LOBBY && lobby_list_) {
+    // Lobby refresh — skip while an invite is in flight so the "Invite
+    // sent, waiting..." status isn't clobbered by the peer list reappearing
+    // every 2s (looked like taps were doing nothing).
+    if (mode_ == MODE_LOBBY && lobby_list_ && !discovery_invite_pending()) {
         static uint32_t last_refresh = 0;
         if (millis() - last_refresh > 2000) {
             last_refresh = millis();
@@ -599,6 +627,7 @@ void MemoryMatch::destroy() {
     discovery_on_invite(nullptr);
     discovery_on_accept(nullptr);
     discovery_on_game_data(nullptr);
+    discovery_on_invite_failed(nullptr);
     s_self = nullptr;
     screen_ = nullptr;
     lbl_moves_ = nullptr;

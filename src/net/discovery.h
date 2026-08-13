@@ -22,6 +22,7 @@ void        discovery_send_invite(IPAddress peer_ip);
 void        discovery_send_accept(IPAddress peer_ip);
 void        discovery_send_decline(IPAddress peer_ip);
 void        discovery_cancel_invite();  // stop retrying an outgoing invite (e.g. user backed out)
+bool        discovery_invite_pending(); // true while an outgoing invite is awaiting accept/decline
 void        discovery_send_game_data(IPAddress peer_ip, const char* json);
 void        discovery_on_invite(InviteCallback cb);
 void        discovery_on_accept(InviteCallback cb);

@@ -5,6 +5,7 @@
 class MemoryMatch : public GameBase {
     friend void mm_on_invite(const Peer& from);
     friend void mm_on_accept(const Peer& from);
+    friend void mm_on_invite_failed(const Peer& from);
     friend void mm_on_game_data(const char* json);
     friend void mm_lobby_peer_cb(lv_event_t* e);
 
@@ -50,6 +51,7 @@ private:
     int     score_p2_ = 0;
     bool    game_done_ = false;
     IPAddress peer_ip_;
+    bool    guest_board_acked_ = false;  // host-side: guest confirmed it built the board
 
     static const char* const symbols[6];
 
