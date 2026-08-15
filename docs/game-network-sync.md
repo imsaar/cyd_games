@@ -14,7 +14,7 @@ Games fall into two sync categories:
 
 | Category | Pattern | Examples |
 |----------|---------|----------|
-| **Turn-based** | Send moves, derive state locally | Tic-Tac-Toe, Connect 4, Chess, Checkers, Dots & Boxes, Memory Match |
+| **Turn-based** | Send moves, derive state locally | Tic-Tac-Toe, Connect 4, Chess, Checkers, Dots & Boxes, Memory Match, Backgammon, Ludo |
 | **Continuous** | Stream state at fixed intervals | Pong, Pictionary |
 
 ## Common Patterns
@@ -183,6 +183,46 @@ void MyGame::destroy() {
 
 ---
 
+### Backgammon
+
+**Roles:** Host = White (first), Guest = Black
+
+**Roll message (roller → other side, once per turn):**
+```json
+{"type": "move", "game": "backgammon", "a": "roll", "d1": 4, "d2": 2, "mc": 7}
+```
+- `d1`, `d2`: the two dice as actually rolled. The receiver re-derives `dice_count_`/doubles handling from these two values with the exact same logic the roller used (`d1==d2` → four moves of that value), so no separate "doubles" flag is needed.
+
+**Move message (one per checker moved):**
+```json
+{"type": "move", "game": "backgammon", "a": "mv", "from": 23, "die": 4, "mc": 8}
+```
+- `from`: point index 0-23, or `-1` for a checker entering from the bar
+- `die`: which of the rolled dice this move consumes
+
+**Sync pattern:** The roller sends `roll` once, then one `mv` per checker moved (a double can send up to 4). The receiver doesn't roll independently — it applies `d1`/`d2` and each `mv` with the same `compute_dest()`/`try_apply_move()` the roller used, so bearing-off legality, hits, and "no legal move → turn passes" are all re-derived identically on both sides rather than transmitted. Whichever message (`roll` or `mv`) was sent most recently is what the heartbeat resends.
+
+---
+
+### Ludo
+
+**Roles:** Host = Red (first, top-left yard), Guest = Yellow (bottom-right yard, opposite corner)
+
+**Move message:**
+```json
+{"type": "move", "game": "ludo", "a": "mv", "p": 2, "d": 6, "mc": 5}
+```
+- `p`: token index 0-3, `d`: the rolled die (1-6)
+
+**Pass message (rolled, but no token can legally move):**
+```json
+{"type": "move", "game": "ludo", "a": "pass", "d": 3, "mc": 6}
+```
+
+**Sync pattern:** Same "receiver re-derives, doesn't get told the result" approach as Backgammon — the mover rolls locally, checks whether any of its 4 tokens has a legal move for that die, and either sends `mv` (receiver applies via the same `compute_move()`/`try_apply_move()`) or `pass` (receiver just calls `switch_turn()`). Captures, safe squares, exact-roll bear-in, and the extra-turn-on-6/capture logic all run identically on both sides from the same inputs, so only the die and the chosen token ever cross the wire.
+
+---
+
 ## Continuous Sync Games
 
 ### Pong
@@ -310,6 +350,9 @@ ESP-NOW has a **250-byte hard limit**. Here's how each game fits:
 | Dots & Boxes | ~55 bytes | Yes |
 | Memory Match (sync) | ~120 bytes | Yes |
 | Memory Match (flip) | ~60 bytes | Yes |
+| Backgammon (roll) | ~70 bytes | Yes |
+| Backgammon (move) | ~65 bytes | Yes |
+| Ludo (move/pass) | ~60 bytes | Yes |
 | Pong (host) | ~100 bytes | Yes |
 | Pong (guest) | ~50 bytes | Yes |
 | Pictionary (setup) | ~130 bytes | Yes |
@@ -366,7 +409,7 @@ Since both UDP and ESP-NOW are unreliable:
 
 ### Heartbeat & Move-Counter Resync (turn-based games)
 
-All turn-based network games (Connect 4, Chess, Checkers, Dots & Boxes, Memory Match, Battleship) share a common resync pattern, implemented via protected fields on `GameBase` (`net_mc_`, `net_last_move_`, `net_last_hb_ms_`, `net_pending_mc_`).
+All turn-based network games (Connect 4, Chess, Checkers, Dots & Boxes, Memory Match, Battleship, Backgammon, Ludo) share a common resync pattern, implemented via protected fields on `GameBase` (`net_mc_`, `net_last_move_`, `net_last_hb_ms_`, `net_pending_mc_`).
 
 **Per-move:**
 - Every outgoing move carries `"mc": N` — a monotonically increasing move counter.

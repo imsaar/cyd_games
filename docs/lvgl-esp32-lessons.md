@@ -1,6 +1,6 @@
 # LVGL 8 + ESP32 Lessons Learned
 
-Hard-won knowledge from building 13 games and a clock/weather app on the ESP32-2432S028 (CYD) with LVGL 8, 320x240 TFT, and resistive touchscreen.
+Hard-won knowledge from building 15 games and a clock/weather app and a paint app on the ESP32-2432S028 (CYD) with LVGL 8, 320x240 TFT, and resistive touchscreen.
 
 ## Custom Fonts (lv_font_conv)
 
@@ -198,3 +198,13 @@ lv_obj_set_pos(cell, dc * CELL, dr * CELL);   // cell_objs_[idx] unchanged
 ```
 
 Either approach works — pick whichever fits how the game already indexes its screen objects. The key invariant: `send_move()`/`onNetworkData()` and all win/legality logic only ever see the canonical (unflipped) index; the transform exists solely between that index and screen pixels, applied identically (and inversely) in both directions on both devices.
+
+## Canvas & Custom Board Drawing
+
+`LV_USE_CANVAS` is `0` by default in this project's `lv_conf.h`. It has to be flipped to `1` for anything that needs a real per-pixel buffer — a freehand paint app with flood fill (Color Fusion), as opposed to a board that's just redrawn from fixed shapes each time. The canvas buffer itself should be heap-allocated (`new lv_color_t[w*h]`) in the screen's `createScreen()`/`_create()` and `delete[]`d on destroy, not a permanent static array: a 240x200 RGB565 buffer is ~94KB, too much to reserve for the app's entire lifetime on a no-PSRAM ESP32 when it's only needed while that one screen is open.
+
+Board games with more cells/pieces than is comfortable as individual `lv_obj`s (Backgammon's 24 points + bar, Ludo's 15x15 grid with up to 8 tokens) don't need the canvas widget at all — `lv_draw_polygon(draw_ctx, &rect_dsc, points, point_cnt)` and `lv_draw_triangle(...)` (declared in `lv_draw_triangle.h`) are generic primitives wired unconditionally into the software renderer. They work in a plain `lv_obj`'s `LV_EVENT_DRAW_POST` callback with no `LV_USE_CANVAS` dependency, using the same `lv_draw_rect_dsc_t` (bg_color/bg_opa) as `lv_draw_rect` for fill styling. Draw the whole board in **one** callback on a single `lv_obj`, reading state straight off `self` (static member function + file-scope `s_self`, same pattern as `Connect4::col_cb`); do hit-testing separately in a `LV_EVENT_CLICKED` callback that maps the tap point to board coordinates via fixed pixel constants — there's nothing to hit-test against per-cell since no per-cell objects exist.
+
+A player-owned piece/token color (backgammon checkers, ludo tokens) needs the same `ui_absolute_color_hex()` treatment as chess/checkers pieces above, even though red/yellow aren't literally black/white — the color still carries "this team" meaning that must survive the Light Mode panel inversion.
+
+**Why:** Building Color Fusion (paint app) and Backgammon/Ludo (custom board games) all needed rendering that plain `lv_obj` widgets don't scale to, and the canvas/polygon APIs required a config flip and weren't otherwise used anywhere in this codebase.

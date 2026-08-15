@@ -23,12 +23,15 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 | Memory Match | 1-2P | Yes | Card matching with 6 pairs, solo/local/network |
 | Checkers | 1-2P | Yes | vs CPU, full rules with kings and forced jumps |
 | Chess | 1-2P | Yes | vs CPU, Unicode piece symbols, full rules, board auto-flips so your pieces are always closest in network games |
-| Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words |
+| Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words — under **Solo Games** |
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines, 5x5 dot grid (4x4 boxes) |
-| Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s |
+| Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s — under **Solo Games** |
 | Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
-| Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates with error highlights, elapsed timer |
+| Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates with error highlights, elapsed timer — under **Solo Games** |
 | Pictionary | 2P | Yes | Draw & guess, 6 colors, 30s timer, local or network with live drawing sync |
+| Backgammon | 1-2P | Yes | Full rules — bar entry, hitting, bearing off, doubles — vs CPU (heuristic AI)/local/network |
+| Ludo | 1-2P | Yes | 2-player (opposite-corner colors), need-a-6-to-leave-yard, captures, safe squares, vs CPU/local/network |
+| Color Fusion | 1P | - | Freehand canvas drawing, independent stroke/fill color pickers, bucket-fill any closed shape inside or outside |
 
 ## Features
 
@@ -120,12 +123,13 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 │   ├── main.cpp            # Setup/loop orchestration
 │   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
 │   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
-│   ├── ui/                 # Screen manager, menu, settings, shared styles
-│   ├── apps/               # Clock (Timer, Stopwatch, Alarm, Calendar)
+│   ├── ui/                 # Screen manager, menu, Solo Games submenu, settings, shared styles
+│   ├── apps/               # Clock (Timer, Stopwatch, Alarm, Calendar), Color Fusion (paint app)
 │   ├── utils/              # Global alert state/overlay, crash-trace breadcrumbs
 │   └── games/              # Battleship, Memory, Pong, Connect 4,
 │                           # Checkers, Chess, Anagram, Dots & Boxes,
-│                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary
+│                           # Whack-a-Mole, Cup Pong, Sudoku, Pictionary,
+│                           # Backgammon, Ludo
 ```
 
 ## Multiplayer

@@ -16,12 +16,13 @@ static const MenuItem items[] = {
     { LV_SYMBOL_IMAGE " Memory",        SCREEN_MEMORY },
     { LV_SYMBOL_EYE_OPEN " Checkers",   SCREEN_CHECKERS },
     { LV_SYMBOL_EDIT " Chess",          SCREEN_CHESS },
-    { LV_SYMBOL_LOOP " Anagram",        SCREEN_ANAGRAM },
     { LV_SYMBOL_LIST " Dots&Boxes",     SCREEN_DOTS_BOXES },
-    { LV_SYMBOL_BELL " Whack-a-Mole",   SCREEN_WHACK_MOLE },
     { LV_SYMBOL_DOWNLOAD " Cup Pong",   SCREEN_CUP_PONG },
-    { LV_SYMBOL_NEW_LINE " Sudoku",    SCREEN_SUDOKU },
-    { LV_SYMBOL_AUDIO " Pictionary", SCREEN_PICTIONARY },
+    { LV_SYMBOL_AUDIO " Pictionary",    SCREEN_PICTIONARY },
+    { LV_SYMBOL_CHARGE " Backgammon",   SCREEN_BACKGAMMON },
+    { LV_SYMBOL_SHUFFLE " Ludo",        SCREEN_LUDO },
+    { LV_SYMBOL_DIRECTORY " Solo Games", SCREEN_SOLO_MENU },
+    { LV_SYMBOL_TINT " Color Fusion",   SCREEN_COLOR_FUSION },
     { LV_SYMBOL_SETTINGS " Settings",   SCREEN_SETTINGS },
 };
 static const int NUM_ITEMS = sizeof(items) / sizeof(items[0]);
@@ -63,13 +64,13 @@ lv_obj_t* screen_menu_create() {
         lbl_time = nullptr;
     }, LV_EVENT_DELETE, NULL);
 
-    // 2 columns x 7 rows
+    // 2 columns x 8 rows
     static const lv_coord_t col_w = 140;
-    static const lv_coord_t row_h = 28;
+    static const lv_coord_t row_h = 24;
     static const lv_coord_t gap_x = 8;
     static const lv_coord_t gap_y = 2;
     lv_coord_t start_x = (320 - 2 * col_w - gap_x) / 2;
-    lv_coord_t start_y = 22;
+    lv_coord_t start_y = 20;
 
     for (int i = 0; i < NUM_ITEMS; i++) {
         int col = i % 2;

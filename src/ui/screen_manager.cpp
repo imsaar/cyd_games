@@ -1,5 +1,6 @@
 #include "screen_manager.h"
 #include "screen_menu.h"
+#include "screen_solo_menu.h"
 #include "screen_settings.h"
 #include "screen_wifi.h"
 #include "../games/battleship/battleship.h"
@@ -15,6 +16,9 @@
 #include "../games/cup_pong/cup_pong.h"
 #include "../games/sudoku/sudoku.h"
 #include "../games/pictionary/pictionary.h"
+#include "../apps/color_fusion/color_fusion.h"
+#include "../games/backgammon/backgammon.h"
+#include "../games/ludo/ludo.h"
 
 static ScreenDef screens[SCREEN_COUNT];
 static ScreenID  current_screen = SCREEN_MENU;
@@ -33,10 +37,15 @@ static WhackMole   whack_mole_game;
 static CupPong     cup_pong_game;
 static Sudoku      sudoku_game;
 static Pictionary  pictionary_game;
+static Backgammon  backgammon_game;
+static Ludo        ludo_game;
 
 void screen_manager_init() {
     screens[SCREEN_MENU] = {
         "Menu", screen_menu_create, nullptr, nullptr, false, 0
+    };
+    screens[SCREEN_SOLO_MENU] = {
+        "Solo Games", screen_solo_menu_create, nullptr, nullptr, false, 0
     };
     screens[SCREEN_SETTINGS] = {
         "Settings", screen_settings_create, screen_settings_update, nullptr, false, 0
@@ -130,6 +139,23 @@ void screen_manager_init() {
         []() { pictionary_game.update(); },
         []() { pictionary_game.destroy(); },
         true, pictionary_game.maxPlayers()
+    };
+    screens[SCREEN_COLOR_FUSION] = {
+        "Color Fusion", color_fusion_create, color_fusion_update, color_fusion_destroy, false, 0
+    };
+    screens[SCREEN_BACKGAMMON] = {
+        backgammon_game.name(),
+        []() -> lv_obj_t* { return backgammon_game.createScreen(); },
+        []() { backgammon_game.update(); },
+        []() { backgammon_game.destroy(); },
+        true, backgammon_game.maxPlayers()
+    };
+    screens[SCREEN_LUDO] = {
+        ludo_game.name(),
+        []() -> lv_obj_t* { return ludo_game.createScreen(); },
+        []() { ludo_game.update(); },
+        []() { ludo_game.destroy(); },
+        true, ludo_game.maxPlayers()
     };
 }
 
