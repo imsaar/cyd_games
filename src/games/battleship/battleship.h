@@ -3,11 +3,6 @@
 #include "../../net/discovery.h"
 
 class Battleship : public GameBase {
-    friend void bs_on_invite(const Peer& from);
-    friend void bs_on_accept(const Peer& from);
-    friend void bs_on_game_data(const char* json);
-    friend void bs_lobby_peer_cb(lv_event_t* e);
-
 public:
     lv_obj_t* createScreen() override;
     void update() override;
@@ -77,13 +72,10 @@ private:
     // UI
     lv_obj_t* screen_ = nullptr;
     lv_obj_t* lbl_status_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
     lv_obj_t* grid_objs_[2][GRID * GRID] = {};
     lv_obj_t* grid_panels_[2] = {};
 
     // Screen builders
-    lv_obj_t* create_mode_select();
-    lv_obj_t* create_lobby();
     lv_obj_t* create_placement(int player);
     lv_obj_t* create_handoff(int next_player);
     lv_obj_t* create_battle(int attacker);
@@ -107,4 +99,7 @@ private:
     static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };

@@ -1,6 +1,7 @@
 #include "pictionary.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../net/mp_shell.h"
 #include "../../hal/sound.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -40,57 +41,15 @@ static lv_color_t palette_color(int idx) {
 
 // ── Static self pointer for discovery callbacks ──
 static Pictionary* s_self = nullptr;
-static IPAddress pending_invite_ip;
-static lv_obj_t* invite_msgbox = nullptr;
+static const MpShellConfig kCfg = { "pictionary", "Pictionary", /*show_cpu_button=*/false, /*show_idle_peers=*/false };
 
 static void back_cb(lv_event_t*) { screen_manager_back_to_menu(); }
 
-// ── Discovery callbacks ──
-
-void pict_on_invite(const Peer& from) {
-    if (!s_self || s_self->phase_ != Pictionary::PHASE_LOBBY) return;
-    if (invite_msgbox) return;
-
-    pending_invite_ip = from.ip;
-    static const char* btns[] = {"Accept", "Decline", ""};
-    invite_msgbox = lv_msgbox_create(NULL, "Pictionary Invite", from.name, btns, false);
-    lv_obj_set_size(invite_msgbox, 240, 140);
-    lv_obj_center(invite_msgbox);
-    lv_obj_set_style_bg_color(invite_msgbox, UI_COLOR_CARD, 0);
-    lv_obj_set_style_text_color(invite_msgbox, UI_COLOR_TEXT, 0);
-
-    lv_obj_t* btnm = lv_msgbox_get_btns(invite_msgbox);
-    lv_obj_add_event_cb(btnm, [](lv_event_t*) {
-        uint16_t btn_id = lv_msgbox_get_active_btn(invite_msgbox);
-        if (btn_id == 0) {
-            discovery_send_accept(pending_invite_ip);
-            s_self->peer_ip_ = pending_invite_ip;
-            s_self->is_host_ = false;
-            s_self->network_mode_ = true;
-            discovery_set_game("pictionary", "playing");
-            lv_msgbox_close(invite_msgbox);
-            invite_msgbox = nullptr;
-            // Guest waits for host to send setup
-            s_self->clear_ui();
-            lv_obj_t* lbl = lv_label_create(s_self->screen_);
-            lv_label_set_text(lbl, "Waiting for host to start...");
-            lv_obj_set_style_text_color(lbl, UI_COLOR_DIM, 0);
-            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
-            lv_obj_center(lbl);
-        } else {
-            discovery_send_decline(pending_invite_ip);
-            lv_msgbox_close(invite_msgbox);
-            invite_msgbox = nullptr;
-        }
-    }, LV_EVENT_CLICKED, NULL);
-}
-
-void pict_on_accept(const Peer& from) {
-    if (!s_self || s_self->phase_ != Pictionary::PHASE_LOBBY) return;
-    s_self->peer_ip_ = from.ip;
+void Pictionary::on_host_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->peer_ip_ = peer.ip;
     s_self->is_host_ = true;
     s_self->network_mode_ = true;
-    discovery_set_game("pictionary", "playing");
     // Host starts the game
     s_self->score_[0] = 0;
     s_self->score_[1] = 0;
@@ -99,22 +58,27 @@ void pict_on_accept(const Peer& from) {
     s_self->start_round();
 }
 
-void pict_on_game_data(const char* json) {
-    if (!s_self || !s_self->network_mode_) return;
-    s_self->onNetworkData(json);
+void Pictionary::on_guest_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->peer_ip_ = peer.ip;
+    s_self->is_host_ = false;
+    s_self->network_mode_ = true;
+    // Guest waits for host to send setup. clear_ui() wipes every child of
+    // screen_ (including whatever the shell's lobby built into it), so this
+    // builds a plain label directly rather than going through
+    // mp_shell_set_status() — that call would touch the shell's own lobby
+    // list object, which clear_ui() just invalidated.
+    s_self->clear_ui();
+    lv_obj_t* lbl = lv_label_create(s_self->screen_);
+    lv_label_set_text(lbl, "Waiting for host to start...");
+    lv_obj_set_style_text_color(lbl, UI_COLOR_DIM, 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+    lv_obj_center(lbl);
 }
 
-void pict_lobby_peer_cb(lv_event_t* e) {
-    if (!s_self) return;
-    int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    const Peer* peers = discovery_get_peers();
-    int count = discovery_peer_count();
-    if (idx < 0 || idx >= count) return;
-    discovery_send_invite(peers[idx].ip);
-    if (s_self->lobby_list_) {
-        lv_obj_clean(s_self->lobby_list_);
-        lv_list_add_text(s_self->lobby_list_, "Invite sent, waiting...");
-    }
+void Pictionary::on_game_data(const char* json) {
+    if (!s_self || !s_self->network_mode_) return;
+    s_self->onNetworkData(json);
 }
 
 // ── Helpers ──
@@ -254,8 +218,13 @@ void Pictionary::draw_cb(lv_event_t* e) {
 
 // ── UI event callbacks ──
 
-void Pictionary::start_cb(lv_event_t* e) {
-    Pictionary* self = (Pictionary*)lv_event_get_user_data(e);
+// Uses s_self rather than lv_event_get_user_data(e): this callback is wired
+// both from show_menu()/show_mode_select() (which pass `this` as user_data)
+// and from mp_create_mode_select() (which always passes NULL) — s_self is
+// valid in both cases.
+void Pictionary::start_cb(lv_event_t*) {
+    Pictionary* self = s_self;
+    if (!self) return;
     self->network_mode_ = false;
     self->score_[0] = 0;
     self->score_[1] = 0;
@@ -381,16 +350,17 @@ void Pictionary::mode_local_cb(lv_event_t* e) {
     self->show_menu();
 }
 
-void Pictionary::mode_network_cb(lv_event_t* e) {
-    Pictionary* self = (Pictionary*)lv_event_get_user_data(e);
-    self->show_lobby();
+// Wired via mp_create_mode_select(), which always passes NULL user_data —
+// use s_self rather than lv_event_get_user_data(e) (see start_cb above).
+void Pictionary::mode_network_cb(lv_event_t*) {
+    if (!s_self) return;
+    s_self->show_lobby();
 }
 
 // ── Screen lifecycle ──
 
 lv_obj_t* Pictionary::createScreen() {
     s_self = this;
-    invite_msgbox = nullptr;
     screen_ = ui_create_screen();
     phase_ = PHASE_MENU;
     show_mode_select();
@@ -398,28 +368,7 @@ lv_obj_t* Pictionary::createScreen() {
 }
 
 void Pictionary::update() {
-    // Lobby peer refresh
-    if (phase_ == PHASE_LOBBY && lobby_list_) {
-        static uint32_t last_refresh = 0;
-        if (millis() - last_refresh > 2000) {
-            last_refresh = millis();
-            lv_obj_clean(lobby_list_);
-            const Peer* peers = discovery_get_peers();
-            int count = discovery_peer_count();
-            int shown = 0;
-            for (int i = 0; i < count; i++) {
-                if (strcmp(peers[i].game, "pictionary") == 0) {
-                    char label[32];
-                    snprintf(label, sizeof(label), "%s (%s)", peers[i].name, peers[i].state);
-                    lv_obj_t* btn = lv_list_add_btn(lobby_list_, LV_SYMBOL_WIFI, label);
-                    lv_obj_add_event_cb(btn, pict_lobby_peer_cb, LV_EVENT_CLICKED,
-                                        (void*)(intptr_t)i);
-                    shown++;
-                }
-            }
-            if (shown == 0) lv_list_add_text(lobby_list_, "Searching...");
-        }
-    }
+    if (phase_ == PHASE_LOBBY) mp_shell_lobby_tick();
 
     // Drawing phase
     if (phase_ != PHASE_DRAW) return;
@@ -495,18 +444,7 @@ void Pictionary::update() {
 }
 
 void Pictionary::destroy() {
-    if (invite_msgbox) {
-        lv_msgbox_close(invite_msgbox);
-        invite_msgbox = nullptr;
-    }
-    if (network_mode_) {
-        discovery_send_game_data(peer_ip_,
-            "{\"type\":\"move\",\"game\":\"pictionary\",\"abandon\":true}");
-    }
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(peer_ip_, network_mode_);
     s_self = nullptr;
     screen_ = nullptr;
     draw_area_ = nullptr;
@@ -514,7 +452,6 @@ void Pictionary::destroy() {
     lbl_timer_ = nullptr;
     lbl_score_ = nullptr;
     btn_panel_ = nullptr;
-    lobby_list_ = nullptr;
     memset(choice_btns_, 0, sizeof(choice_btns_));
 }
 
@@ -666,7 +603,6 @@ void Pictionary::clear_ui() {
     lbl_timer_ = nullptr;
     lbl_score_ = nullptr;
     btn_panel_ = nullptr;
-    lobby_list_ = nullptr;
     memset(choice_btns_, 0, sizeof(choice_btns_));
 }
 
@@ -697,43 +633,15 @@ void Pictionary::show_menu() {
 void Pictionary::show_mode_select() {
     clear_ui();
     phase_ = PHASE_MODE_SELECT;
-
     ui_create_back_btn(screen_);
-    lv_obj_t* title = ui_create_title(screen_, "Pictionary");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-    lv_obj_t* btn_local = ui_create_btn(screen_, "Local (2P)", 140, 50);
-    lv_obj_align(btn_local, LV_ALIGN_CENTER, 0, -30);
-    lv_obj_add_event_cb(btn_local, start_cb, LV_EVENT_CLICKED, this);
-
-    lv_obj_t* btn_net = ui_create_btn(screen_, "Network (2P)", 140, 50);
-    lv_obj_align(btn_net, LV_ALIGN_CENTER, 0, 35);
-    lv_obj_add_event_cb(btn_net, mode_network_cb, LV_EVENT_CLICKED, this);
+    mp_create_mode_select(kCfg, nullptr, start_cb, mode_network_cb, screen_);
 }
 
 void Pictionary::show_lobby() {
     clear_ui();
     phase_ = PHASE_LOBBY;
-
-    discovery_set_game("pictionary", "waiting");
-    discovery_on_invite(pict_on_invite);
-    discovery_on_accept(pict_on_accept);
-    discovery_on_game_data(pict_on_game_data);
-
     ui_create_back_btn(screen_);
-    lv_obj_t* title = ui_create_title(screen_, "Finding Opponents...");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-    lobby_list_ = lv_list_create(screen_);
-    lv_obj_set_size(lobby_list_, 280, 160);
-    lv_obj_align(lobby_list_, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_set_style_bg_color(lobby_list_, UI_COLOR_CARD, 0);
-
-    lv_obj_t* hint = lv_label_create(screen_);
-    lv_label_set_text(hint, "Tap a peer to invite");
-    lv_obj_set_style_text_color(hint, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
+    mp_shell_host_lobby(kCfg, on_host_ready, on_guest_ready, on_game_data, nullptr, screen_);
 }
 
 void Pictionary::start_round() {

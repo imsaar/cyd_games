@@ -3,11 +3,6 @@
 #include "../../net/discovery.h"
 
 class Backgammon : public GameBase {
-    friend void bg_on_invite(const Peer& from);
-    friend void bg_on_accept(const Peer& from);
-    friend void bg_on_game_data(const char* json);
-    friend void bg_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
     enum Player { WHITE = 0, BLACK = 1 };
@@ -22,7 +17,6 @@ public:
 
 private:
     lv_obj_t* screen_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
     lv_obj_t* lbl_status_ = nullptr;
     lv_obj_t* lbl_dice_ = nullptr;
     lv_obj_t* lbl_off_ = nullptr;
@@ -82,8 +76,6 @@ private:
     int  score_move(int to_idx, bool bear_off) const;
     bool cpu_pick_move(int& from_out, int& die_out) const;
 
-    lv_obj_t* create_mode_select();
-    lv_obj_t* create_lobby();
     lv_obj_t* create_board();
 
     static void mode_cpu_cb(lv_event_t* e);
@@ -93,4 +85,7 @@ private:
     static void bear_off_cb(lv_event_t* e);
     static void board_click_cb(lv_event_t* e);
     static void board_draw_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };

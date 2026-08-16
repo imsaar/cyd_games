@@ -3,12 +3,6 @@
 #include "../../net/discovery.h"
 
 class MemoryMatch : public GameBase {
-    friend void mm_on_invite(const Peer& from);
-    friend void mm_on_accept(const Peer& from);
-    friend void mm_on_invite_failed(const Peer& from);
-    friend void mm_on_game_data(const char* json);
-    friend void mm_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_SOLO, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
@@ -30,7 +24,6 @@ private:
     lv_obj_t* card_labels_[NUM_CARDS] = {};
     lv_obj_t* lbl_moves_ = nullptr;
     lv_obj_t* lbl_status_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
 
     int8_t  values_[NUM_CARDS] = {};
     bool    revealed_[NUM_CARDS] = {};
@@ -55,9 +48,7 @@ private:
 
     static const char* const symbols[6];
 
-    lv_obj_t* create_mode_select();
     lv_obj_t* create_board();
-    lv_obj_t* create_lobby();
     void shuffle();
     void reveal(int idx);
     void hide(int idx);
@@ -71,4 +62,8 @@ private:
     static void mode_solo_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
+    static void on_invite_failed(const Peer& peer);
 };

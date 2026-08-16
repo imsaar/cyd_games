@@ -1,155 +1,72 @@
 #include "dots_boxes.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../net/mp_shell.h"
 #include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static DotsBoxes* s_self = nullptr;
-static lv_obj_t* db_invite_msgbox = nullptr;
-static IPAddress db_pending_ip;
-
-// ── Discovery callbacks ──
-
-void db_on_invite(const Peer& from) {
-    if (!s_self || !s_self->lobby_list_) return;
-    if (db_invite_msgbox) return;
-    db_pending_ip = from.ip;
-    static const char* btns[] = {"Accept", "Decline", ""};
-    db_invite_msgbox = lv_msgbox_create(NULL, "Dots & Boxes Invite",
-        from.name, btns, false);
-    lv_obj_set_size(db_invite_msgbox, 240, 140);
-    lv_obj_center(db_invite_msgbox);
-    lv_obj_set_style_bg_color(db_invite_msgbox, UI_COLOR_CARD, 0);
-    lv_obj_set_style_text_color(db_invite_msgbox, UI_COLOR_TEXT, 0);
-    lv_obj_t* btnm = lv_msgbox_get_btns(db_invite_msgbox);
-    lv_obj_add_event_cb(btnm, [](lv_event_t* e) {
-        uint16_t btn_id = lv_msgbox_get_active_btn(db_invite_msgbox);
-        if (btn_id == 0) {
-            discovery_send_accept(db_pending_ip);
-            s_self->peer_ip_ = db_pending_ip;
-            s_self->mode_ = DotsBoxes::MODE_NETWORK;
-            s_self->my_player_ = DotsBoxes::P2;
-            s_self->my_turn_ = false;
-            discovery_set_game("dotsboxes", "playing");
-            lv_msgbox_close(db_invite_msgbox);
-            db_invite_msgbox = nullptr;
-            lv_obj_t* scr = s_self->create_board();
-            lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
-            s_self->screen_ = scr;
-        } else {
-            discovery_send_decline(db_pending_ip);
-            lv_msgbox_close(db_invite_msgbox);
-            db_invite_msgbox = nullptr;
-        }
-    }, LV_EVENT_CLICKED, NULL);
-}
-
-void db_on_accept(const Peer& from) {
-    if (!s_self || !s_self->lobby_list_) return;
-    s_self->peer_ip_ = from.ip;
-    s_self->mode_ = DotsBoxes::MODE_NETWORK;
-    s_self->my_player_ = DotsBoxes::P1;
-    s_self->my_turn_ = true;
-    discovery_set_game("dotsboxes", "playing");
-    lv_obj_t* scr = s_self->create_board();
-    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
-    s_self->screen_ = scr;
-}
-
-void db_on_game_data(const char* json) {
-    if (!s_self || s_self->mode_ != DotsBoxes::MODE_NETWORK) return;
-    s_self->onNetworkData(json);
-}
-
-void db_lobby_peer_cb(lv_event_t* e) {
-    if (!s_self) return;
-    int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    const Peer* peers = discovery_get_peers();
-    int count = discovery_peer_count();
-    if (idx < 0 || idx >= count) return;
-    discovery_send_invite(peers[idx].ip);
-    if (s_self->lobby_list_) {
-        lv_obj_clean(s_self->lobby_list_);
-        lv_list_add_text(s_self->lobby_list_, "Invite sent, waiting...");
-    }
-}
+static const MpShellConfig kCfg = { "dotsboxes", "Dots & Boxes", /*show_cpu_button=*/true, /*show_idle_peers=*/false };
 
 // ── Mode selection ──
 
-void DotsBoxes::mode_cpu_cb(lv_event_t* e) {
+void DotsBoxes::mode_cpu_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->mode_ = MODE_CPU;
     s_self->my_player_ = P1;
     s_self->my_turn_ = true;
     s_self->cpu_pending_ = false;
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(s_self->peer_ip_, false);
     lv_obj_t* scr = s_self->create_board();
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
 }
 
-void DotsBoxes::mode_local_cb(lv_event_t* e) {
+void DotsBoxes::mode_local_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOCAL;
     s_self->my_player_ = P1;
     s_self->my_turn_ = true;
     s_self->cpu_pending_ = false;
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(s_self->peer_ip_, false);
     lv_obj_t* scr = s_self->create_board();
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
 }
 
-void DotsBoxes::mode_online_cb(lv_event_t* e) {
+void DotsBoxes::mode_online_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOBBY;
-    discovery_set_game("dotsboxes", "waiting");
-    discovery_on_invite(db_on_invite);
-    discovery_on_accept(db_on_accept);
-    discovery_on_game_data(db_on_game_data);
-    lv_obj_t* scr = s_self->create_lobby();
+    lv_obj_t* scr = mp_shell_host_lobby(kCfg, on_host_ready, on_guest_ready, on_game_data, nullptr);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
 }
 
-lv_obj_t* DotsBoxes::create_mode_select() {
-    lv_obj_t* scr = ui_create_screen();
-    ui_create_back_btn(scr);
-    lv_obj_t* title = ui_create_title(scr, "Dots & Boxes");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_t* b0 = ui_create_btn(scr, "vs CPU", 140, 42);
-    lv_obj_align(b0, LV_ALIGN_CENTER, 0, -50);
-    lv_obj_add_event_cb(b0, mode_cpu_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* b1 = ui_create_btn(scr, "Local (2P)", 140, 42);
-    lv_obj_align(b1, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_event_cb(b1, mode_local_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t* b2 = ui_create_btn(scr, "Network (2P)", 140, 42);
-    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 50);
-    lv_obj_add_event_cb(b2, mode_online_cb, LV_EVENT_CLICKED, NULL);
-    return scr;
+void DotsBoxes::on_host_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_NETWORK;
+    s_self->my_player_ = P1;
+    s_self->my_turn_ = true;
+    s_self->peer_ip_ = peer.ip;
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
 }
 
-lv_obj_t* DotsBoxes::create_lobby() {
-    lv_obj_t* scr = ui_create_screen();
-    ui_create_back_btn(scr);
-    lv_obj_t* title = ui_create_title(scr, "Dots & Boxes - Find Opponent");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lobby_list_ = lv_list_create(scr);
-    lv_obj_set_size(lobby_list_, 280, 160);
-    lv_obj_align(lobby_list_, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_set_style_bg_color(lobby_list_, UI_COLOR_CARD, 0);
-    lv_obj_t* hint = lv_label_create(scr);
-    lv_label_set_text(hint, "Tap a peer to invite");
-    lv_obj_set_style_text_color(hint, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
-    return scr;
+void DotsBoxes::on_guest_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_NETWORK;
+    s_self->my_player_ = P2;
+    s_self->my_turn_ = false;
+    s_self->peer_ip_ = peer.ip;
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
+void DotsBoxes::on_game_data(const char* json) {
+    if (!s_self || s_self->mode_ != DotsBoxes::MODE_NETWORK) return;
+    s_self->onNetworkData(json);
 }
 
 // ── Board ──
@@ -244,7 +161,6 @@ lv_obj_t* DotsBoxes::create_board() {
         }
     }
 
-    lobby_list_ = nullptr;
     reset_board();
     update_status();
     update_scores();
@@ -509,9 +425,8 @@ void DotsBoxes::send_move(int idx) {
 
 lv_obj_t* DotsBoxes::createScreen() {
     s_self = this;
-    db_invite_msgbox = nullptr;
     mode_ = MODE_SELECT;
-    screen_ = create_mode_select();
+    screen_ = mp_create_mode_select(kCfg, mode_cpu_cb, mode_local_cb, mode_online_cb);
     return screen_;
 }
 
@@ -538,48 +453,15 @@ void DotsBoxes::update() {
         }
     }
 
-    if (mode_ == MODE_LOBBY && lobby_list_) {
-        static uint32_t last_refresh = 0;
-        if (millis() - last_refresh > 2000) {
-            last_refresh = millis();
-            lv_obj_clean(lobby_list_);
-            const Peer* peers = discovery_get_peers();
-            int count = discovery_peer_count();
-            int shown = 0;
-            for (int i = 0; i < count; i++) {
-                if (strcmp(peers[i].game, "dotsboxes") == 0) {
-                    char label[32];
-                    snprintf(label, sizeof(label), "%s (%s)",
-                             peers[i].name, peers[i].state);
-                    lv_obj_t* btn = lv_list_add_btn(lobby_list_, LV_SYMBOL_WIFI, label);
-                    lv_obj_add_event_cb(btn, db_lobby_peer_cb, LV_EVENT_CLICKED,
-                                        (void*)(intptr_t)i);
-                    shown++;
-                }
-            }
-            if (shown == 0) lv_list_add_text(lobby_list_, "Searching...");
-        }
-    }
+    if (mode_ == MODE_LOBBY) mp_shell_lobby_tick();
 }
 
 void DotsBoxes::destroy() {
-    if (db_invite_msgbox) {
-        lv_msgbox_close(db_invite_msgbox);
-        db_invite_msgbox = nullptr;
-    }
-    if (mode_ == MODE_NETWORK) {
-        discovery_send_game_data(peer_ip_,
-            "{\"type\":\"move\",\"game\":\"dotsboxes\",\"abandon\":true}");
-    }
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(peer_ip_, mode_ == MODE_NETWORK && !game_done_);
     s_self = nullptr;
     screen_ = nullptr;
     lbl_status_ = nullptr;
     lbl_score_ = nullptr;
-    lobby_list_ = nullptr;
 }
 
 void DotsBoxes::onNetworkData(const char* json) {

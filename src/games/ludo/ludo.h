@@ -9,11 +9,6 @@
 // approachable; captures, safe squares, exact-roll bear-in, extra turns
 // on 6/capture, and the need-a-6-to-leave-yard rule are all implemented.
 class Ludo : public GameBase {
-    friend void ludo_on_invite(const Peer& from);
-    friend void ludo_on_accept(const Peer& from);
-    friend void ludo_on_game_data(const char* json);
-    friend void ludo_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
     enum Player { PC_RED = 0, PC_YELLOW = 1 };
@@ -30,7 +25,6 @@ private:
     struct Token { int8_t local_pos = -1; }; // -1 yard, 0-50 ring, 51-56 home col, 57 finished
 
     lv_obj_t* screen_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
     lv_obj_t* lbl_status_ = nullptr;
     lv_obj_t* lbl_dice_ = nullptr;
     lv_obj_t* lbl_home_ = nullptr;
@@ -72,8 +66,6 @@ private:
     int  score_ludo_move(int token_idx, int new_local) const;
     int  cpu_pick_token() const;
 
-    lv_obj_t* create_mode_select();
-    lv_obj_t* create_lobby();
     lv_obj_t* create_board();
 
     static void mode_cpu_cb(lv_event_t* e);
@@ -82,4 +74,7 @@ private:
     static void roll_cb(lv_event_t* e);
     static void board_click_cb(lv_event_t* e);
     static void board_draw_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };

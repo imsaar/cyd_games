@@ -3,12 +3,6 @@
 #include "../../net/discovery.h"
 
 class Pong : public GameBase {
-    friend void pong_on_invite(const Peer& from);
-    friend void pong_on_accept(const Peer& from);
-    friend void pong_on_invite_failed(const Peer& from);
-    friend void pong_on_game_data(const char* json);
-    friend void pong_lobby_peer_cb(lv_event_t* e);
-
 public:
     lv_obj_t* createScreen() override;
     void update() override;
@@ -34,7 +28,6 @@ private:
     lv_obj_t* paddle_r_   = nullptr;
     lv_obj_t* ball_       = nullptr;
     lv_obj_t* lbl_score_  = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
     lv_obj_t* center_line_[17] = {};
 
     float ball_x_, ball_y_;
@@ -57,9 +50,12 @@ private:
     void show_winner(bool left_won);
 
     lv_obj_t* create_game_screen();
-    lv_obj_t* create_lobby();
 
     static void touch_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
+    static void on_invite_failed(const Peer& peer);
 };

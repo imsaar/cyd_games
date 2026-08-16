@@ -1,12 +1,14 @@
 #include "battleship.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../net/mp_shell.h"
 #include "../../hal/sound.h"
 #include <ArduinoJson.h>
 
 static Battleship* s_self = nullptr;
-static lv_obj_t* bs_invite_msgbox = nullptr;
-static IPAddress bs_pending_ip;
+// show_idle_peers=true: Battleship's lobby also shows peers not yet
+// announcing any game (not just ones already in "battleship"/"waiting").
+static const MpShellConfig kCfg = { "battleship", "Battleship", /*show_cpu_button=*/true, /*show_idle_peers=*/true };
 
 const int Battleship::ship_sizes_[NUM_SHIPS] = {5, 4, 3, 3, 2};
 
@@ -20,79 +22,40 @@ static const int GRID_Y = 50;
 static const int GRID_L_X = (320 - GRID_W * 2 - GRID_GAP) / 2;
 static const int GRID_R_X = GRID_L_X + GRID_W + GRID_GAP;
 
-// ── Discovery callbacks ──
+// ── Lifecycle ──
 
-void bs_on_invite(const Peer& from) {
-    if (!s_self || s_self->phase_ != Battleship::PHASE_LOBBY) return;
-    if (bs_invite_msgbox) return;
-    bs_pending_ip = from.ip;
-    static const char* btns[] = {"Accept", "Decline", ""};
-    bs_invite_msgbox = lv_msgbox_create(NULL, "Battleship Invite",
-        from.name, btns, false);
-    lv_obj_set_size(bs_invite_msgbox, 240, 140);
-    lv_obj_center(bs_invite_msgbox);
-    lv_obj_set_style_bg_color(bs_invite_msgbox, UI_COLOR_CARD, 0);
-    lv_obj_set_style_text_color(bs_invite_msgbox, UI_COLOR_TEXT, 0);
-    lv_obj_t* btnm = lv_msgbox_get_btns(bs_invite_msgbox);
-    lv_obj_add_event_cb(btnm, [](lv_event_t*) {
-        uint16_t btn_id = lv_msgbox_get_active_btn(bs_invite_msgbox);
-        if (btn_id == 0) {
-            discovery_send_accept(bs_pending_ip);
-            s_self->peer_ip_ = bs_pending_ip;
-            s_self->is_host_ = false;
-            s_self->mode_ = Battleship::MODE_NETWORK;
-            discovery_set_game("battleship", "playing");
-            lv_msgbox_close(bs_invite_msgbox);
-            bs_invite_msgbox = nullptr;
-            s_self->reset_game();
-            lv_obj_t* scr = s_self->create_placement(0);
-            lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
-            s_self->screen_ = scr;
-        } else {
-            discovery_send_decline(bs_pending_ip);
-            lv_msgbox_close(bs_invite_msgbox);
-            bs_invite_msgbox = nullptr;
-        }
-    }, LV_EVENT_CLICKED, NULL);
+lv_obj_t* Battleship::createScreen() {
+    s_self = this;
+    phase_ = PHASE_MODE_SELECT;
+    screen_ = mp_create_mode_select(kCfg, mode_cpu_cb, mode_local_cb, mode_online_cb);
+    return screen_;
 }
 
-void bs_on_accept(const Peer& from) {
-    if (!s_self || s_self->phase_ != Battleship::PHASE_LOBBY) return;
-    s_self->peer_ip_ = from.ip;
+void Battleship::on_host_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->peer_ip_ = peer.ip;
     s_self->is_host_ = true;
-    s_self->mode_ = Battleship::MODE_NETWORK;
-    discovery_set_game("battleship", "playing");
+    s_self->mode_ = MODE_NETWORK;
     s_self->reset_game();
     lv_obj_t* scr = s_self->create_placement(0);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
 }
 
-void bs_on_game_data(const char* json) {
+void Battleship::on_guest_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->peer_ip_ = peer.ip;
+    s_self->is_host_ = false;
+    s_self->mode_ = MODE_NETWORK;
+    s_self->reset_game();
+    lv_obj_t* scr = s_self->create_placement(0);
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
+void Battleship::on_game_data(const char* json) {
     if (!s_self || s_self->mode_ != Battleship::MODE_NETWORK) return;
     s_self->onNetworkData(json);
-}
-
-void bs_lobby_peer_cb(lv_event_t* e) {
-    if (!s_self) return;
-    int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    const Peer* peers = discovery_get_peers();
-    int count = discovery_peer_count();
-    if (idx < 0 || idx >= count) return;
-    discovery_send_invite(peers[idx].ip);
-    if (s_self->lobby_list_) {
-        lv_obj_clean(s_self->lobby_list_);
-        lv_list_add_text(s_self->lobby_list_, "Invite sent, waiting...");
-    }
-}
-
-// ── Lifecycle ──
-
-lv_obj_t* Battleship::createScreen() {
-    s_self = this;
-    bs_invite_msgbox = nullptr;
-    screen_ = create_mode_select();
-    return screen_;
 }
 
 void Battleship::update() {
@@ -114,29 +77,7 @@ void Battleship::update() {
         }
     }
 
-    // Lobby peer refresh
-    if (phase_ == PHASE_LOBBY && lobby_list_) {
-        static uint32_t last_refresh = 0;
-        if (millis() - last_refresh > 2000) {
-            last_refresh = millis();
-            lv_obj_clean(lobby_list_);
-            const Peer* peers = discovery_get_peers();
-            int count = discovery_peer_count();
-            bool found = false;
-            for (int i = 0; i < count; i++) {
-                if (peers[i].game[0] == '\0' ||
-                    (strcmp(peers[i].game, "battleship") == 0 &&
-                     strcmp(peers[i].state, "waiting") == 0)) {
-                    lv_obj_t* btn = lv_list_add_btn(lobby_list_, LV_SYMBOL_WIFI, peers[i].name);
-                    lv_obj_add_event_cb(btn, bs_lobby_peer_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
-                    found = true;
-                }
-            }
-            if (!found) {
-                lv_list_add_text(lobby_list_, "Searching for peers...");
-            }
-        }
-    }
+    if (phase_ == PHASE_LOBBY) mp_shell_lobby_tick();
 
     // CPU turn
     if (mode_ == MODE_CPU && phase_ == PHASE_BATTLE && cpu_pending_) {
@@ -184,26 +125,10 @@ void Battleship::update() {
 }
 
 void Battleship::destroy() {
-    if (bs_invite_msgbox) {
-        lv_msgbox_close(bs_invite_msgbox);
-        bs_invite_msgbox = nullptr;
-    }
-    if (mode_ == MODE_NETWORK) {
-        StaticJsonDocument<96> doc;
-        doc["type"] = "move"; doc["game"] = "battleship";
-        doc["abandon"] = true;
-        char buf[96];
-        serializeJson(doc, buf, sizeof(buf));
-        send_json(buf);
-    }
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(peer_ip_, mode_ == MODE_NETWORK && !game_done_);
     s_self = nullptr;
     screen_ = nullptr;
     lbl_status_ = nullptr;
-    lobby_list_ = nullptr;
     memset(grid_objs_, 0, sizeof(grid_objs_));
     memset(grid_panels_, 0, sizeof(grid_panels_));
 }
@@ -477,10 +402,7 @@ void Battleship::mode_cpu_cb(lv_event_t*) {
     s_self->mode_ = MODE_CPU;
     s_self->reset_game();
     s_self->cpu_place_ships();
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(s_self->peer_ip_, false);
     lv_obj_t* scr = s_self->create_placement(0);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
@@ -490,10 +412,7 @@ void Battleship::mode_local_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->mode_ = MODE_LOCAL;
     s_self->reset_game();
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(s_self->peer_ip_, false);
     lv_obj_t* scr = s_self->create_placement(0);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
@@ -502,54 +421,9 @@ void Battleship::mode_local_cb(lv_event_t*) {
 void Battleship::mode_online_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->phase_ = PHASE_LOBBY;
-    discovery_set_game("battleship", "waiting");
-    discovery_on_invite(bs_on_invite);
-    discovery_on_accept(bs_on_accept);
-    discovery_on_game_data(bs_on_game_data);
-    lv_obj_t* scr = s_self->create_lobby();
+    lv_obj_t* scr = mp_shell_host_lobby(kCfg, on_host_ready, on_guest_ready, on_game_data, nullptr);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
-}
-
-lv_obj_t* Battleship::create_mode_select() {
-    phase_ = PHASE_MODE_SELECT;
-    lv_obj_t* scr = ui_create_screen();
-    ui_create_back_btn(scr);
-    lv_obj_t* title = ui_create_title(scr, "Battleship");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-    lv_obj_t* b1 = ui_create_btn(scr, "vs CPU", 140, 42);
-    lv_obj_align(b1, LV_ALIGN_CENTER, 0, -50);
-    lv_obj_add_event_cb(b1, mode_cpu_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t* b2 = ui_create_btn(scr, "Local (2P)", 140, 42);
-    lv_obj_align(b2, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_event_cb(b2, mode_local_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t* b3 = ui_create_btn(scr, "Network (2P)", 140, 42);
-    lv_obj_align(b3, LV_ALIGN_CENTER, 0, 50);
-    lv_obj_add_event_cb(b3, mode_online_cb, LV_EVENT_CLICKED, NULL);
-
-    return scr;
-}
-
-// ── Lobby ──
-
-lv_obj_t* Battleship::create_lobby() {
-    lv_obj_t* scr = ui_create_screen();
-    ui_create_back_btn(scr);
-    lv_obj_t* title = ui_create_title(scr, "Battleship - Find Opponent");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-    lobby_list_ = lv_list_create(scr);
-    lv_obj_set_size(lobby_list_, 280, 160);
-    lv_obj_align(lobby_list_, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_set_style_bg_color(lobby_list_, UI_COLOR_CARD, 0);
-    lv_obj_t* hint = lv_label_create(scr);
-    lv_label_set_text(hint, "Tap a peer to invite");
-    lv_obj_set_style_text_color(hint, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
-    return scr;
 }
 
 // ── Ship placement ──
