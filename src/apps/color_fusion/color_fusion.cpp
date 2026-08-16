@@ -4,14 +4,24 @@
 #include <new>
 
 // ── Geometry ──
-// Canvas buffer is w*h*2 bytes (RGB565). Kept modest — this device has no
-// PSRAM and a ~200x170 buffer (68KB) is a much safer single allocation
-// than the full draw-area footprint would be, on top of whatever WiFi/LVGL
-// have already claimed from the heap.
+// Canvas fills the screen up to the toolbar column (toolbar's own x is
+// derived from CANVAS_W below) and the full screen height — no dead space
+// to its right or below it. A 240x240 buffer at native resolution would be
+// ~112.5KB (RGB565), which this no-PSRAM device can't reliably spare as one
+// heap block (that's what produced "Out of memory"). Instead the pixel
+// buffer is rendered at 1/SCALE resolution and displayed zoomed back up to
+// the full CANVAS_W x CANVAS_H footprint via lv_img_set_zoom — chunkier
+// ("coarse grain") pixels, but a SCALE^2 reduction in memory: at SCALE=2
+// that's ~28KB instead of ~112KB. All drawing math below happens in the
+// smaller BUF_W x BUF_H buffer space; only the touch-input mapping and the
+// on-screen widget size use the full CANVAS_W x CANVAS_H footprint.
 static const int CANVAS_X = 0;
 static const int CANVAS_Y = 0;
-static const int CANVAS_W = 200;
-static const int CANVAS_H = 170;
+static const int CANVAS_W = 240;
+static const int CANVAS_H = 240;
+static const int SCALE = 2;
+static const int BUF_W = CANVAS_W / SCALE;
+static const int BUF_H = CANVAS_H / SCALE;
 static const int BRUSH_R = 1;
 
 // ── Palette (shared by both the stroke and fill pickers) ──
@@ -58,8 +68,8 @@ static int  last_y_ = -1;
 // action; undo/redo just re-renders from a blank canvas through the active
 // action count. Cheap (tens of bytes per action) and correct, since fills
 // are replayed in original order against the same prior state each time.
-static const int MAX_ACTIONS = 30;
-static const int MAX_HIST_POINTS = 4000;
+static const int MAX_ACTIONS = 6;
+static const int MAX_HIST_POINTS = 1000;
 
 struct HistPoint { int16_t x, y; };
 // Heap-allocated (like buf_) rather than static: a static array this size
@@ -84,8 +94,8 @@ static int  stroke_pt_start_ = 0;
 // ── Pixel-buffer drawing helpers ──
 
 static inline void put_px(int x, int y, lv_color_t c) {
-    if (!buf_ || x < 0 || x >= CANVAS_W || y < 0 || y >= CANVAS_H) return;
-    buf_[y * CANVAS_W + x] = c;
+    if (!buf_ || x < 0 || x >= BUF_W || y < 0 || y >= BUF_H) return;
+    buf_[y * BUF_W + x] = c;
 }
 
 static void draw_dot(int cx, int cy, int r, lv_color_t c) {
@@ -115,8 +125,8 @@ static void draw_stroke_line(int x0, int y0, int x1, int y1, int r, lv_color_t c
 struct FillSeed { int16_t x, y; };
 
 static bool flood_fill(int sx, int sy, lv_color_t fill_color) {
-    if (!buf_ || sx < 0 || sx >= CANVAS_W || sy < 0 || sy >= CANVAS_H) return false;
-    lv_color_t target = buf_[sy * CANVAS_W + sx];
+    if (!buf_ || sx < 0 || sx >= BUF_W || sy < 0 || sy >= BUF_H) return false;
+    lv_color_t target = buf_[sy * BUF_W + sx];
     if (target.full == fill_color.full) return false;
 
     const int MAX_STACK = 4096;
@@ -128,25 +138,25 @@ static bool flood_fill(int sx, int sy, lv_color_t fill_color) {
     while (sp > 0) {
         FillSeed s = stack[--sp];
         int x = s.x, y = s.y;
-        if (x < 0 || x >= CANVAS_W || y < 0 || y >= CANVAS_H) continue;
-        if (buf_[y * CANVAS_W + x].full != target.full) continue;
+        if (x < 0 || x >= BUF_W || y < 0 || y >= BUF_H) continue;
+        if (buf_[y * BUF_W + x].full != target.full) continue;
 
         int xl = x;
-        while (xl > 0 && buf_[y * CANVAS_W + (xl - 1)].full == target.full) xl--;
+        while (xl > 0 && buf_[y * BUF_W + (xl - 1)].full == target.full) xl--;
         int xr = x;
-        while (xr < CANVAS_W - 1 && buf_[y * CANVAS_W + (xr + 1)].full == target.full) xr++;
+        while (xr < BUF_W - 1 && buf_[y * BUF_W + (xr + 1)].full == target.full) xr++;
 
-        for (int i = xl; i <= xr; i++) buf_[y * CANVAS_W + i] = fill_color;
+        for (int i = xl; i <= xr; i++) buf_[y * BUF_W + i] = fill_color;
 
         int neighbor_rows[2] = { y - 1, y + 1 };
         for (int n = 0; n < 2; n++) {
             int ny = neighbor_rows[n];
-            if (ny < 0 || ny >= CANVAS_H) continue;
+            if (ny < 0 || ny >= BUF_H) continue;
             int i = xl;
             while (i <= xr) {
-                if (buf_[ny * CANVAS_W + i].full == target.full) {
+                if (buf_[ny * BUF_W + i].full == target.full) {
                     if (sp < MAX_STACK) stack[sp++] = { (int16_t)i, (int16_t)ny };
-                    while (i <= xr && buf_[ny * CANVAS_W + i].full == target.full) i++;
+                    while (i <= xr && buf_[ny * BUF_W + i].full == target.full) i++;
                 } else {
                     i++;
                 }
@@ -327,10 +337,15 @@ lv_obj_t* color_fusion_create() {
 
     canvas_ = lv_canvas_create(screen_);
     lv_obj_set_pos(canvas_, CANVAS_X, CANVAS_Y);
-    buf_ = new (std::nothrow) lv_color_t[CANVAS_W * CANVAS_H];
+    buf_ = new (std::nothrow) lv_color_t[BUF_W * BUF_H];
     if (buf_) {
-        lv_canvas_set_buffer(canvas_, buf_, CANVAS_W, CANVAS_H, LV_IMG_CF_TRUE_COLOR);
+        lv_canvas_set_buffer(canvas_, buf_, BUF_W, BUF_H, LV_IMG_CF_TRUE_COLOR);
         lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
+        // Render the low-res buffer back up to the full CANVAS_W x CANVAS_H
+        // footprint — pivot at the top-left so it scales in place instead
+        // of around its center (LVGL's zoom default).
+        lv_img_set_pivot(canvas_, 0, 0);
+        lv_img_set_zoom(canvas_, 256 * SCALE);
     } else {
         lv_obj_t* err = lv_label_create(screen_);
         lv_label_set_text(err, "Out of memory");
@@ -468,6 +483,9 @@ void color_fusion_update() {
     int lx = p.x - CANVAS_X;
     int ly = p.y - CANVAS_Y;
     bool in_bounds = (lx >= 0 && lx < CANVAS_W && ly >= 0 && ly < CANVAS_H);
+    // Drawing/history/fill all operate in the smaller buffer's pixel space.
+    int bx = lx / SCALE;
+    int by = ly / SCALE;
 
     if (pressed && in_bounds) {
         if (tool_ == TOOL_PEN) {
@@ -476,21 +494,21 @@ void color_fusion_update() {
                 hist_truncate_redo();
                 stroke_active_ = true;
                 stroke_pt_start_ = hist_point_count_;
-                hist_add_point(lx, ly);
-                draw_dot(lx, ly, BRUSH_R, c);
+                hist_add_point(bx, by);
+                draw_dot(bx, by, BRUSH_R, c);
             } else {
-                hist_add_point(lx, ly);
-                draw_stroke_line(last_x_, last_y_, lx, ly, BRUSH_R, c);
+                hist_add_point(bx, by);
+                draw_stroke_line(last_x_, last_y_, bx, by, BRUSH_R, c);
             }
-            last_x_ = lx;
-            last_y_ = ly;
+            last_x_ = bx;
+            last_y_ = by;
             pen_down_ = true;
             lv_obj_invalidate(canvas_);
         } else {
             if (!pen_down_) {
-                if (flood_fill(lx, ly, palette_color(cur_fill_))) {
+                if (flood_fill(bx, by, palette_color(cur_fill_))) {
                     hist_truncate_redo();
-                    hist_record_fill(lx, ly, cur_fill_);
+                    hist_record_fill(bx, by, cur_fill_);
                 }
                 lv_obj_invalidate(canvas_);
             }

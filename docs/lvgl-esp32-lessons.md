@@ -238,3 +238,20 @@ This happened adding Color Fusion's undo/redo history as `static HistPoint hist_
 Fix: allocate it on the heap instead, exactly like the canvas-buffer pattern above (`new (std::nothrow) T[n]` in create, `delete[]` in destroy, null-guarded everywhere it's read). Heap allocations only fail if there's truly no room *at that moment*; a static array fails unconditionally at link time regardless of runtime heap headroom. Any buffer sized beyond a few hundred bytes for a single screen/app (as opposed to a shared, always-resident structure like the per-game static instances in `screen_manager.cpp`) should default to heap, not `static`.
 
 **Why:** `pio run` catches this at link time with a clear error, but only once it happens — worth defaulting to heap allocation up front for any sizeable buffer rather than discovering the DRAM ceiling by hitting it.
+
+## Shrink Canvas Memory with `lv_img_set_zoom`, Not a Smaller Widget
+
+`lv_canvas`'s underlying class is `lv_img`, so it inherits `lv_img_set_zoom()`/`lv_img_set_pivot()` — a canvas can render a *smaller* buffer scaled back up to its intended on-screen footprint, for a `SCALE²` memory cut with no change to how much screen space it occupies:
+
+```cpp
+// Buffer at 1/SCALE resolution — SCALE=2 here is a 4x memory cut
+// (240x240 RGB565 = ~112.5KB -> 120x120 = ~28.8KB).
+buf_ = new (std::nothrow) lv_color_t[BUF_W * BUF_H];
+lv_canvas_set_buffer(canvas_, buf_, BUF_W, BUF_H, LV_IMG_CF_TRUE_COLOR);
+lv_img_set_pivot(canvas_, 0, 0);       // scale from the top-left corner,
+lv_img_set_zoom(canvas_, 256 * SCALE); // not LVGL's default center pivot
+```
+
+All drawing/fill/hit-testing math then happens in the small buffer's coordinate space; only the touch-input mapping (divide the raw touch point by `SCALE`) and the widget's on-screen position/size need to know about the full, zoomed footprint. `lv_img_set_zoom()` calls `lv_obj_refresh_ext_draw_size()` internally, so `lv_obj_invalidate()` correctly redraws the *full* zoomed area, not just the small nominal buffer size — no extra invalidation bookkeeping needed. The visible cost is chunkier, blockier pixels (each buffer pixel becomes a `SCALE x SCALE` screen block), which reads as "coarse" or "pixel art" rather than a defect — a reasonable trade for a freehand paint app that needed its full on-screen footprint back after `new (std::nothrow)` alone wasn't enough headroom.
+
+**Why:** Color Fusion's canvas was enlarged to fill the screen (~112.5KB buffer), which reliably produced "Out of memory" on this no-PSRAM device even with the nothrow fix already in place — the fix wasn't shrinking the *visible* canvas back down, it was shrinking the *buffer* while keeping the on-screen size.
