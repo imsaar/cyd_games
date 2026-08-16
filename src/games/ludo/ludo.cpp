@@ -628,7 +628,7 @@ void Ludo::board_draw_cb(lv_event_t* e) {
     chk.radius = LV_RADIUS_CIRCLE;
     chk.bg_opa = LV_OPA_COVER;
     chk.border_width = 1;
-    chk.border_color = lv_color_black();
+    chk.border_color = ui_absolute_color_hex(0x000000);
     chk.border_opa = LV_OPA_COVER;
 
     lv_draw_rect_dsc_t ring;

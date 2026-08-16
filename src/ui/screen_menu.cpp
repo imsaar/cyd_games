@@ -17,7 +17,6 @@ static const MenuItem items[] = {
     { LV_SYMBOL_EYE_OPEN " Checkers",   SCREEN_CHECKERS },
     { LV_SYMBOL_EDIT " Chess",          SCREEN_CHESS },
     { LV_SYMBOL_LIST " Dots&Boxes",     SCREEN_DOTS_BOXES },
-    { LV_SYMBOL_DOWNLOAD " Cup Pong",   SCREEN_CUP_PONG },
     { LV_SYMBOL_AUDIO " Pictionary",    SCREEN_PICTIONARY },
     { LV_SYMBOL_CHARGE " Backgammon",   SCREEN_BACKGAMMON },
     { LV_SYMBOL_SHUFFLE " Ludo",        SCREEN_LUDO },

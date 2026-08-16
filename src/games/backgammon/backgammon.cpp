@@ -410,18 +410,20 @@ void Backgammon::select_origin(int from) {
         }
     }
     if (btn_bear_off_) {
-        if (can_bear_off_) lv_obj_clear_flag(btn_bear_off_, LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_add_flag(btn_bear_off_, LV_OBJ_FLAG_HIDDEN);
+        if (can_bear_off_) lv_obj_clear_state(btn_bear_off_, LV_STATE_DISABLED);
+        else lv_obj_add_state(btn_bear_off_, LV_STATE_DISABLED);
     }
     redraw_board();
+    update_status();
 }
 
 void Backgammon::clear_selection() {
     selected_from_ = -2;
     for (int i = 0; i < 24; i++) legal_dest_[i] = false;
     can_bear_off_ = false;
-    if (btn_bear_off_) lv_obj_add_flag(btn_bear_off_, LV_OBJ_FLAG_HIDDEN);
+    if (btn_bear_off_) lv_obj_add_state(btn_bear_off_, LV_STATE_DISABLED);
     redraw_board();
+    update_status();
 }
 
 void Backgammon::redraw_board() {
@@ -437,6 +439,19 @@ void Backgammon::update_status() {
         txt = (current_ == WHITE) ? "White's turn" : "Black's turn";
     } else {
         txt = my_turn_ ? (rolled_ ? "Your turn" : "Your turn - Roll") : "Waiting...";
+    }
+    bool interactive = (mode_ == MODE_LOCAL) ||
+                        (mode_ == MODE_CPU && current_ == WHITE) ||
+                        (mode_ == MODE_NETWORK && my_turn_);
+    if (interactive && selected_from_ != -2) {
+        if (can_bear_off_) {
+            txt = "Tap piece again to bear off";
+        } else if (selected_from_ >= 0 && dist_of(current_, selected_from_) <= 6 && !all_in_home(current_)) {
+            // Looks bear-off-eligible (piece is in the home range) but isn't,
+            // because not every checker is home yet — real backgammon rule,
+            // surfaced explicitly so it doesn't read as an unresponsive tap.
+            txt = "Bring all checkers home first";
+        }
     }
     lv_label_set_text(lbl_status_, txt);
 
@@ -560,20 +575,21 @@ lv_obj_t* Backgammon::create_board() {
     int tb_x = BOARD_X + BOARD_TOTAL_W + 4;
     int y = 4;
 
+    // Exit button — bottom-right corner of the screen, out of the way of
+    // the board and the dice/roll/bear-off controls.
     {
         lv_obj_t* btn = lv_btn_create(scr);
-        lv_obj_set_size(btn, 64, 24);
-        lv_obj_set_pos(btn, tb_x, y);
+        lv_obj_set_size(btn, 64, 26);
+        lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
         lv_obj_set_style_bg_color(btn, UI_COLOR_PRIMARY, 0);
         lv_obj_set_style_radius(btn, 6, 0);
         lv_obj_t* lbl = lv_label_create(btn);
-        lv_label_set_text(lbl, LV_SYMBOL_LEFT " Back");
+        lv_label_set_text(lbl, LV_SYMBOL_CLOSE " Exit");
         lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, 0);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
         lv_obj_center(lbl);
         lv_obj_add_event_cb(btn, [](lv_event_t*) { screen_manager_back_to_menu(); }, LV_EVENT_CLICKED, NULL);
     }
-    y += 30;
 
     lbl_status_ = lv_label_create(scr);
     lv_obj_set_style_text_color(lbl_status_, UI_COLOR_TEXT, 0);
@@ -592,10 +608,14 @@ lv_obj_t* Backgammon::create_board() {
     lv_obj_add_event_cb(btn_roll_, roll_cb, LV_EVENT_CLICKED, NULL);
     y += 32;
 
+    // Always visible (not hidden-until-legal) so the control itself is
+    // discoverable — just disabled/dimmed until the selected piece can
+    // actually bear off.
     btn_bear_off_ = ui_create_btn(scr, "Bear Off", 72, 28);
     lv_obj_set_pos(btn_bear_off_, tb_x, y);
     lv_obj_add_event_cb(btn_bear_off_, bear_off_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_flag(btn_bear_off_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_bg_opa(btn_bear_off_, LV_OPA_40, LV_STATE_DISABLED);
+    lv_obj_add_state(btn_bear_off_, LV_STATE_DISABLED);
     lv_obj_set_style_text_font(lv_obj_get_child(btn_bear_off_, 0), &lv_font_montserrat_12, 0);
     y += 32;
 
@@ -661,7 +681,23 @@ void Backgammon::board_click_cb(lv_event_t*) {
     }
 
     if (self->selected_from_ != -2) {
-        if (slot == self->selected_from_) { self->clear_selection(); return; }
+        if (slot == self->selected_from_) {
+            // Tapping the already-selected checker again bears it off if that's
+            // its only legal move (there's no separate on-board square to tap
+            // for "off the board", so this doubles as the confirm gesture).
+            if (self->can_bear_off_) {
+                for (int di = 0; di < self->dice_count_; di++) {
+                    if (self->dice_used_[di]) continue;
+                    int to_idx; bool bo;
+                    if (self->compute_dest(pl, self->selected_from_, self->dice_[di], to_idx, bo) && bo) {
+                        self->try_apply_move(self->selected_from_, self->dice_[di], true);
+                        return;
+                    }
+                }
+            }
+            self->clear_selection();
+            return;
+        }
         if (self->legal_dest_[slot]) {
             for (int di = 0; di < self->dice_count_; di++) {
                 if (self->dice_used_[di]) continue;
@@ -742,7 +778,6 @@ void Backgammon::board_draw_cb(lv_event_t* e) {
     chk.radius = LV_RADIUS_CIRCLE;
     chk.bg_opa = LV_OPA_COVER;
     chk.border_width = 1;
-    chk.border_color = lv_color_black();
     chk.border_opa = LV_OPA_COVER;
 
     lv_draw_label_dsc_t ldsc;
@@ -771,11 +806,12 @@ void Backgammon::board_draw_cb(lv_event_t* e) {
             lv_area_t ca = { (lv_coord_t)(px - CHIP_D / 2), (lv_coord_t)(cy - CHIP_D / 2),
                               (lv_coord_t)(px + CHIP_D / 2), (lv_coord_t)(cy + CHIP_D / 2) };
             chk.bg_color = white ? ui_absolute_color_hex(0xF5F5F5) : ui_absolute_color_hex(0x202020);
+            chk.border_color = white ? ui_absolute_color_hex(0x000000) : ui_absolute_color_hex(0xFFFFFF);
             lv_draw_rect(ctx, &chk, &ca);
             if (k == show - 1 && cnt > 5) {
                 char buf[4];
                 snprintf(buf, sizeof(buf), "%d", cnt);
-                ldsc.color = white ? lv_color_black() : lv_color_white();
+                ldsc.color = white ? ui_absolute_color_hex(0x000000) : ui_absolute_color_hex(0xFFFFFF);
                 lv_area_t ta = { (lv_coord_t)(px - 8), (lv_coord_t)(cy - 7),
                                   (lv_coord_t)(px + 8), (lv_coord_t)(cy + 7) };
                 lv_draw_label(ctx, &ldsc, &ta, buf, NULL);
@@ -789,10 +825,11 @@ void Backgammon::board_draw_cb(lv_event_t* e) {
         lv_area_t ca = { (lv_coord_t)(px - CHIP_D / 2), (lv_coord_t)(py - CHIP_D / 2),
                           (lv_coord_t)(px + CHIP_D / 2), (lv_coord_t)(py + CHIP_D / 2) };
         chk.bg_color = ui_absolute_color_hex(0xF5F5F5);
+        chk.border_color = ui_absolute_color_hex(0x000000);
         lv_draw_rect(ctx, &chk, &ca);
         if (self->bar_white_ > 1) {
             char buf[4]; snprintf(buf, sizeof(buf), "%d", self->bar_white_);
-            ldsc.color = lv_color_black();
+            ldsc.color = ui_absolute_color_hex(0x000000);
             lv_area_t ta = { (lv_coord_t)(px - 8), (lv_coord_t)(py - 7), (lv_coord_t)(px + 8), (lv_coord_t)(py + 7) };
             lv_draw_label(ctx, &ldsc, &ta, buf, NULL);
         }
@@ -802,10 +839,11 @@ void Backgammon::board_draw_cb(lv_event_t* e) {
         lv_area_t ca = { (lv_coord_t)(px - CHIP_D / 2), (lv_coord_t)(py - CHIP_D / 2),
                           (lv_coord_t)(px + CHIP_D / 2), (lv_coord_t)(py + CHIP_D / 2) };
         chk.bg_color = ui_absolute_color_hex(0x202020);
+        chk.border_color = ui_absolute_color_hex(0xFFFFFF);
         lv_draw_rect(ctx, &chk, &ca);
         if (self->bar_black_ > 1) {
             char buf[4]; snprintf(buf, sizeof(buf), "%d", self->bar_black_);
-            ldsc.color = lv_color_white();
+            ldsc.color = ui_absolute_color_hex(0xFFFFFF);
             lv_area_t ta = { (lv_coord_t)(px - 8), (lv_coord_t)(py - 7), (lv_coord_t)(px + 8), (lv_coord_t)(py + 7) };
             lv_draw_label(ctx, &ldsc, &ta, buf, NULL);
         }

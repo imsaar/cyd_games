@@ -16,7 +16,7 @@ void prefs_set_brightness(uint8_t val) {
 }
 
 bool prefs_get_inverted() {
-    return nvs.getBool("invert", false);
+    return nvs.getBool("invert", true);  // default Dark Mode out of the box
 }
 
 void prefs_set_inverted(bool val) {

@@ -208,3 +208,33 @@ Board games with more cells/pieces than is comfortable as individual `lv_obj`s (
 A player-owned piece/token color (backgammon checkers, ludo tokens) needs the same `ui_absolute_color_hex()` treatment as chess/checkers pieces above, even though red/yellow aren't literally black/white — the color still carries "this team" meaning that must survive the Light Mode panel inversion.
 
 **Why:** Building Color Fusion (paint app) and Backgammon/Ludo (custom board games) all needed rendering that plain `lv_obj` widgets don't scale to, and the canvas/polygon APIs required a config flip and weren't otherwise used anywhere in this codebase.
+
+**A border or label drawn on top of an absolute-colored piece needs the same treatment as the fill.** `ui_absolute_color_hex()` on a checker's *fill* doesn't help if its border or a text label stamped on top still uses a plain `lv_color_black()`/`lv_color_white()` — those get hardware-inverted independently of the fill, and can silently flip "black text on a white chip" into "white text on a white chip" (invisible) once Light Mode inverts the panel. This bit Backgammon's stacked-checker count label and its chip border:
+
+```cpp
+// BAD: border/label color doesn't track the fill's absolute-ness
+chk.bg_color = white ? ui_absolute_color_hex(0xF5F5F5) : ui_absolute_color_hex(0x202020);
+chk.border_color = lv_color_black();               // inverts to white in Light Mode
+ldsc.color = white ? lv_color_black() : lv_color_white();  // same bug
+
+// GOOD: border/label follow the same absolute logic, inverted from the fill
+chk.bg_color = white ? ui_absolute_color_hex(0xF5F5F5) : ui_absolute_color_hex(0x202020);
+chk.border_color = white ? ui_absolute_color_hex(0x000000) : ui_absolute_color_hex(0xFFFFFF);
+ldsc.color = white ? ui_absolute_color_hex(0x000000) : ui_absolute_color_hex(0xFFFFFF);
+```
+
+Plain decorative background colors (board triangles, yard quadrants) don't need this — contrast between two *non-absolute* colors is exactly preserved under global inversion (inverting both sides of a color pair leaves their RGB distance unchanged). The bug only appears where an absolute-colored piece's outline/label was left non-absolute, and it's invisible in Dark Mode testing since the plain colors happen to be correct there by coincidence — only surfaces when someone actually checks Light Mode.
+
+## Static Buffers Have a Much Smaller Ceiling Than "Free Heap"
+
+A `static` array sized for something non-trivial (a few thousand elements, tens of KB) can blow the link — not fail at runtime, fail to *link* — even when the overall "RAM used" percentage PlatformIO reports looks comfortable:
+
+```
+region `dram0_0_seg' overflowed by 16064 bytes
+```
+
+This happened adding Color Fusion's undo/redo history as `static HistPoint hist_points_[4000]` (16,000 bytes) plus a small `static HistAction actions_[30]` array — together barely 17KB, yet it overflowed the ESP32's fixed DRAM/BSS segment, a much harder and smaller ceiling than the general free-heap number suggests (that segment also holds every other static/global across the whole firmware — LVGL's object pool, both TFT_eSPI draw buffers, WiFi/BT internals, every game's static instance in `screen_manager.cpp`, etc. — so an innocuous-looking "37.8% RAM used" can still leave `dram0_0_seg` itself with very little slack).
+
+Fix: allocate it on the heap instead, exactly like the canvas-buffer pattern above (`new (std::nothrow) T[n]` in create, `delete[]` in destroy, null-guarded everywhere it's read). Heap allocations only fail if there's truly no room *at that moment*; a static array fails unconditionally at link time regardless of runtime heap headroom. Any buffer sized beyond a few hundred bytes for a single screen/app (as opposed to a shared, always-resident structure like the per-game static instances in `screen_manager.cpp`) should default to heap, not `static`.
+
+**Why:** `pio run` catches this at link time with a clear error, but only once it happens — worth defaulting to heap allocation up front for any sizeable buffer rather than discovering the DRAM ceiling by hitting it.

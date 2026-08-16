@@ -8,9 +8,10 @@ struct SoloMenuItem {
 };
 
 static const SoloMenuItem items[] = {
-    { LV_SYMBOL_LOOP " Anagram",      SCREEN_ANAGRAM },
-    { LV_SYMBOL_BELL " Whack-a-Mole", SCREEN_WHACK_MOLE },
-    { LV_SYMBOL_NEW_LINE " Sudoku",   SCREEN_SUDOKU },
+    { LV_SYMBOL_LOOP " Anagram",        SCREEN_ANAGRAM },
+    { LV_SYMBOL_BELL " Whack-a-Mole",   SCREEN_WHACK_MOLE },
+    { LV_SYMBOL_NEW_LINE " Sudoku",     SCREEN_SUDOKU },
+    { LV_SYMBOL_DOWNLOAD " Cup Pong",   SCREEN_CUP_PONG },
 };
 static const int NUM_ITEMS = sizeof(items) / sizeof(items[0]);
 
@@ -27,9 +28,9 @@ lv_obj_t* screen_solo_menu_create() {
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
     static const lv_coord_t btn_w = 180;
-    static const lv_coord_t btn_h = 36;
-    static const lv_coord_t gap_y = 14;
-    lv_coord_t start_y = 60;
+    static const lv_coord_t btn_h = 32;
+    static const lv_coord_t gap_y = 10;
+    lv_coord_t start_y = 50;
 
     for (int i = 0; i < NUM_ITEMS; i++) {
         lv_obj_t* btn = ui_create_btn(scr, items[i].label, btn_w, btn_h);

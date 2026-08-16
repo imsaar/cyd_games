@@ -26,12 +26,12 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 | Anagram | 1P | - | Unscramble words, 20s timer, 10 rounds, 80+ words — under **Solo Games** |
 | Dots & Boxes | 2P | Yes | Claim boxes by completing lines, 5x5 dot grid (4x4 boxes) |
 | Whack-a-Mole | 1P | - | Whack brown moles, spare baby faces, POW effects, 30s — under **Solo Games** |
-| Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws |
+| Cup Pong | 1P | - | Bounce ball off table into 10 red cups, 10 throws — under **Solo Games** |
 | Sudoku | 1P | - | 9x9 puzzle, number pad, check box, Done validates with error highlights, elapsed timer — under **Solo Games** |
 | Pictionary | 2P | Yes | Draw & guess, 6 colors, 30s timer, local or network with live drawing sync |
 | Backgammon | 1-2P | Yes | Full rules — bar entry, hitting, bearing off, doubles — vs CPU (heuristic AI)/local/network |
 | Ludo | 1-2P | Yes | 2-player (opposite-corner colors), need-a-6-to-leave-yard, captures, safe squares, vs CPU/local/network |
-| Color Fusion | 1P | - | Freehand canvas drawing, independent stroke/fill color pickers, bucket-fill any closed shape inside or outside |
+| Color Fusion | 1P | - | Freehand canvas drawing, independent stroke/fill color pickers, bucket-fill any closed shape inside or outside, undo/redo |
 
 ## Features
 
@@ -44,7 +44,7 @@ For an ASCII rear-view diagram and how to power the board via the **S1 / S3** so
 - **ESP-NOW** — Peer-to-peer multiplayer without WiFi infrastructure, automatic fallback when WiFi is unavailable
 - **NTP Clock** — Current date/time (Pacific) displayed on the main menu when WiFi is connected
 - **Sound Effects** — Piezo buzzer feedback for moves, opponent moves, wins, losses, and startup
-- **Persistent Settings** — Brightness, dark mode, sound, device name, and Hijri date offset saved to NVS across power cycles
+- **Persistent Settings** — Brightness, dark mode (defaults on out of the box), sound, device name, and Hijri date offset saved to NVS across power cycles
 - **Settings Screen** — Device name editor, brightness slider, Dark Mode toggle, Sound on/off, WiFi on/off switch, WiFi Setup (on-screen SSID/password entry), Hijri date adjustment (±2 days for moonsighting), IP, MAC, RSSI, firmware version, partition, heap, uptime, OTA URL
 
 ## Build & Flash
