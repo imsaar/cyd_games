@@ -122,7 +122,8 @@ If WiFi is unavailable or disabled in Settings, multiplayer automatically uses E
 ├── src/
 │   ├── main.cpp            # Setup/loop orchestration
 │   ├── hal/                # Display, backlight, LED, audio, sound effects, preferences
-│   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery
+│   ├── net/                # WiFi, OTA, UDP/ESP-NOW discovery, shared
+│   │                       # multiplayer shell (mode-select/lobby/invite)
 │   ├── ui/                 # Screen manager, menu, Solo Games submenu, settings, shared styles
 │   ├── apps/               # Clock (Timer, Stopwatch, Alarm, Calendar), Color Fusion (paint app)
 │   ├── utils/              # Global alert state/overlay, crash-trace breadcrumbs
@@ -151,7 +152,7 @@ The transport is selected automatically at boot based on WiFi connectivity, or m
 
 Invite and accept messages are retried automatically (every ~350ms, up to ~5s) until acknowledged, so a single dropped WiFi/ESP-NOW packet no longer leaves one device stuck in the lobby while the other has already started.
 
-Each game syncs state independently — turn-based games send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.
+The mode-select screen, lobby/peer list, and invite/accept flow are shared code (`src/net/mp_shell.h`) used by all 10 multiplayer games, rather than reimplemented per game. Each game syncs its actual gameplay independently once a match starts — turn-based games send moves, Pong syncs ball/paddle positions at 20fps, Memory Match syncs the card layout and flips.
 
 For technical details, see the design documents:
 - **[ESP-NOW Transport Design](docs/esp-now-transport.md)** — Transport layer, discovery protocol, peer management, packet formats
