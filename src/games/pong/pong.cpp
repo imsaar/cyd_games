@@ -1,72 +1,37 @@
 #include "pong.h"
 #include "../../ui/ui_common.h"
 #include "../../ui/screen_manager.h"
+#include "../../net/mp_shell.h"
 #include "../../hal/sound.h"
 #include <ArduinoJson.h>
 #include <math.h>
 
 static Pong* s_self = nullptr;
-static lv_obj_t* pong_invite_msgbox = nullptr;
-static IPAddress pong_pending_ip;
+static const MpShellConfig kCfg = { "pong", "Pong", /*show_cpu_button=*/false, /*show_idle_peers=*/false };
 
-// ── Discovery callbacks ──
-
-void pong_on_invite(const Peer& from) {
+void Pong::on_host_ready(const Peer& peer) {
     if (!s_self) return;
-    if (!s_self->lobby_list_) return;  // Not in lobby
-    if (pong_invite_msgbox) return;
-
-    pong_pending_ip = from.ip;
-
-    static const char* btns[] = {"Accept", "Decline", ""};
-    pong_invite_msgbox = lv_msgbox_create(NULL, "Pong Invite",
-        from.name, btns, false);
-    lv_obj_set_size(pong_invite_msgbox, 240, 140);
-    lv_obj_center(pong_invite_msgbox);
-    lv_obj_set_style_bg_color(pong_invite_msgbox, UI_COLOR_CARD, 0);
-    lv_obj_set_style_text_color(pong_invite_msgbox, UI_COLOR_TEXT, 0);
-
-    lv_obj_t* btnm = lv_msgbox_get_btns(pong_invite_msgbox);
-    lv_obj_add_event_cb(btnm, [](lv_event_t* e) {
-        uint16_t btn_id = lv_msgbox_get_active_btn(pong_invite_msgbox);
-        if (btn_id == 0) {  // Accept
-            discovery_send_accept(pong_pending_ip);
-            s_self->peer_ip_ = pong_pending_ip;
-            s_self->is_local_ = false;
-            s_self->is_host_ = false;
-            discovery_set_game("pong", "playing");
-
-            lv_msgbox_close(pong_invite_msgbox);
-            pong_invite_msgbox = nullptr;
-
-            lv_obj_t* scr = s_self->create_game_screen();
-            s_self->screen_ = scr;
-            s_self->reset_game();
-            lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
-        } else {
-            discovery_send_decline(pong_pending_ip);
-            lv_msgbox_close(pong_invite_msgbox);
-            pong_invite_msgbox = nullptr;
-        }
-    }, LV_EVENT_CLICKED, NULL);
-}
-
-void pong_on_accept(const Peer& from) {
-    if (!s_self) return;
-    if (!s_self->lobby_list_) return;
-
-    s_self->peer_ip_ = from.ip;
+    s_self->peer_ip_ = peer.ip;
     s_self->is_local_ = false;
     s_self->is_host_ = true;
-    discovery_set_game("pong", "playing");
-
     lv_obj_t* scr = s_self->create_game_screen();
     s_self->screen_ = scr;
     s_self->reset_game();
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
 }
 
-void pong_on_game_data(const char* json) {
+void Pong::on_guest_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->peer_ip_ = peer.ip;
+    s_self->is_local_ = false;
+    s_self->is_host_ = false;
+    lv_obj_t* scr = s_self->create_game_screen();
+    s_self->screen_ = scr;
+    s_self->reset_game();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+}
+
+void Pong::on_game_data(const char* json) {
     if (!s_self || !s_self->playing_) return;
     s_self->onNetworkData(json);
 }
@@ -74,48 +39,8 @@ void pong_on_game_data(const char* json) {
 // Fired if the peer declines, or doesn't respond within the retry window.
 // Without this, the lobby just silently resumes showing the peer list on
 // its next 2s refresh with no explanation of what happened.
-void pong_on_invite_failed(const Peer& from) {
-    if (!s_self || !s_self->lobby_list_) return;
-    lv_obj_clean(s_self->lobby_list_);
-    lv_list_add_text(s_self->lobby_list_, "No response - try again");
-}
-
-// ── Lobby ──
-
-void pong_lobby_peer_cb(lv_event_t* e) {
-    if (!s_self) return;
-    int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    const Peer* peers = discovery_get_peers();
-    int count = discovery_peer_count();
-    if (idx < 0 || idx >= count) return;
-
-    discovery_send_invite(peers[idx].ip);
-
-    if (s_self->lobby_list_) {
-        lv_obj_clean(s_self->lobby_list_);
-        lv_list_add_text(s_self->lobby_list_, "Invite sent, waiting...");
-    }
-}
-
-lv_obj_t* Pong::create_lobby() {
-    lv_obj_t* scr = ui_create_screen();
-    ui_create_back_btn(scr);
-
-    lv_obj_t* title = ui_create_title(scr, "Pong - Find Opponent");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-    lobby_list_ = lv_list_create(scr);
-    lv_obj_set_size(lobby_list_, 280, 160);
-    lv_obj_align(lobby_list_, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_set_style_bg_color(lobby_list_, UI_COLOR_CARD, 0);
-
-    lv_obj_t* hint = lv_label_create(scr);
-    lv_label_set_text(hint, "Tap a peer to invite");
-    lv_obj_set_style_text_color(hint, UI_COLOR_DIM, 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
-
-    return scr;
+void Pong::on_invite_failed(const Peer&) {
+    mp_shell_set_status("No response - try again");
 }
 
 // ── Game logic ──
@@ -421,16 +346,11 @@ lv_obj_t* Pong::create_game_screen() {
 
 // ── Mode selection ──
 
-void Pong::mode_local_cb(lv_event_t* e) {
+void Pong::mode_local_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->is_local_ = true;
     s_self->is_host_ = true;
-    s_self->lobby_list_ = nullptr;
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
-    discovery_on_invite_failed(nullptr);
+    mp_shell_end(s_self->peer_ip_, false);
 
     lv_obj_t* scr = s_self->create_game_screen();
     s_self->screen_ = scr;
@@ -438,16 +358,10 @@ void Pong::mode_local_cb(lv_event_t* e) {
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
 }
 
-void Pong::mode_online_cb(lv_event_t* e) {
+void Pong::mode_online_cb(lv_event_t*) {
     if (!s_self) return;
     s_self->is_local_ = false;
-    discovery_set_game("pong", "waiting");
-    discovery_on_invite(pong_on_invite);
-    discovery_on_accept(pong_on_accept);
-    discovery_on_game_data(pong_on_game_data);
-    discovery_on_invite_failed(pong_on_invite_failed);
-
-    lv_obj_t* scr = s_self->create_lobby();
+    lv_obj_t* scr = mp_shell_host_lobby(kCfg, on_host_ready, on_guest_ready, on_game_data, on_invite_failed);
     lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
     s_self->screen_ = scr;
 }
@@ -456,60 +370,19 @@ void Pong::mode_online_cb(lv_event_t* e) {
 
 lv_obj_t* Pong::createScreen() {
     s_self = this;
-    pong_invite_msgbox = nullptr;
-    screen_ = ui_create_screen();
-    ui_create_back_btn(screen_);
-
-    lv_obj_t* title = ui_create_title(screen_, "Pong");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-    lv_obj_t* btn_local = ui_create_btn(screen_, "vs Computer", 140, 50);
-    lv_obj_align(btn_local, LV_ALIGN_CENTER, 0, -30);
-    lv_obj_add_event_cb(btn_local, mode_local_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t* btn_online = ui_create_btn(screen_, "vs Network", 140, 50);
-    lv_obj_align(btn_online, LV_ALIGN_CENTER, 0, 35);
-    lv_obj_add_event_cb(btn_online, mode_online_cb, LV_EVENT_CLICKED, NULL);
+    screen_ = mp_create_mode_select(kCfg, nullptr, mode_local_cb, mode_online_cb);
 
     court_ = nullptr;
     paddle_l_ = nullptr;
     paddle_r_ = nullptr;
     ball_ = nullptr;
     lbl_score_ = nullptr;
-    lobby_list_ = nullptr;
     playing_ = false;
     return screen_;
 }
 
 void Pong::update() {
-    // Lobby refresh — skip while an invite is in flight so the "Invite
-    // sent, waiting..." status isn't clobbered by the peer list reappearing
-    // every 2s (looked like taps were doing nothing).
-    if (lobby_list_ && !playing_ && !discovery_invite_pending()) {
-        static uint32_t last_refresh = 0;
-        if (millis() - last_refresh > 2000) {
-            last_refresh = millis();
-            lv_obj_clean(lobby_list_);
-
-            const Peer* peers = discovery_get_peers();
-            int count = discovery_peer_count();
-            int shown = 0;
-            for (int i = 0; i < count; i++) {
-                if (strcmp(peers[i].game, "pong") == 0) {
-                    char label[32];
-                    snprintf(label, sizeof(label), "%s (%s)",
-                             peers[i].name, peers[i].state);
-                    lv_obj_t* btn = lv_list_add_btn(lobby_list_, LV_SYMBOL_WIFI, label);
-                    lv_obj_add_event_cb(btn, pong_lobby_peer_cb, LV_EVENT_CLICKED,
-                                        (void*)(intptr_t)i);
-                    shown++;
-                }
-            }
-            if (shown == 0) {
-                lv_list_add_text(lobby_list_, "Searching...");
-            }
-        }
-    }
+    if (!playing_) mp_shell_lobby_tick();
 
     // Game loop
     if (!playing_) return;
@@ -529,19 +402,7 @@ void Pong::update() {
 }
 
 void Pong::destroy() {
-    if (pong_invite_msgbox) {
-        lv_msgbox_close(pong_invite_msgbox);
-        pong_invite_msgbox = nullptr;
-    }
-    if (!is_local_) {
-        discovery_send_game_data(peer_ip_,
-            "{\"type\":\"move\",\"game\":\"pong\",\"abandon\":true}");
-    }
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
-    discovery_on_invite_failed(nullptr);
+    mp_shell_end(peer_ip_, !is_local_);
     s_self = nullptr;
     screen_ = nullptr;
     court_ = nullptr;
@@ -549,7 +410,6 @@ void Pong::destroy() {
     paddle_r_ = nullptr;
     ball_ = nullptr;
     lbl_score_ = nullptr;
-    lobby_list_ = nullptr;
     playing_ = false;
 }
 

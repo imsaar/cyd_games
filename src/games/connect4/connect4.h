@@ -3,11 +3,6 @@
 #include "../../net/discovery.h"
 
 class Connect4 : public GameBase {
-    friend void c4_on_invite(const Peer& from);
-    friend void c4_on_accept(const Peer& from);
-    friend void c4_on_game_data(const char* json);
-    friend void c4_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
@@ -30,7 +25,6 @@ private:
     lv_obj_t* board_objs_[COLS * ROWS] = {};
     lv_obj_t* col_btns_[COLS] = {};
     lv_obj_t* lbl_status_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
 
     int8_t board_[COLS * ROWS] = {};
     Cell current_ = RED;
@@ -40,9 +34,7 @@ private:
     bool game_done_ = false;
     IPAddress peer_ip_;
 
-    lv_obj_t* create_mode_select();
     lv_obj_t* create_board();
-    lv_obj_t* create_lobby();
     void reset_board();
     int drop_disc(int col);
     bool check_win(int row, int col);
@@ -61,4 +53,7 @@ private:
     static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);   // our invite was accepted -> we go first
+    static void on_guest_ready(const Peer& peer);  // we accepted someone's invite -> we go second
+    static void on_game_data(const char* json);
 };

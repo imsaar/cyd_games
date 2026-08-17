@@ -3,11 +3,6 @@
 #include "../../net/discovery.h"
 
 class DotsBoxes : public GameBase {
-    friend void db_on_invite(const Peer& from);
-    friend void db_on_accept(const Peer& from);
-    friend void db_on_game_data(const char* json);
-    friend void db_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
@@ -39,7 +34,6 @@ private:
     lv_obj_t* box_labels_[BOXES * BOXES] = {};
     lv_obj_t* lbl_status_ = nullptr;
     lv_obj_t* lbl_score_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
 
     bool lines_[TOTAL_LINES] = {};
     int8_t boxes_[BOXES * BOXES] = {};
@@ -52,9 +46,7 @@ private:
     int score_p2_ = 0;
     IPAddress peer_ip_;
 
-    lv_obj_t* create_mode_select();
     lv_obj_t* create_board();
-    lv_obj_t* create_lobby();
     void reset_board();
     bool place_line(int idx);
     int check_boxes(int line_idx);
@@ -73,4 +65,7 @@ private:
     static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };

@@ -3,11 +3,6 @@
 #include "../../net/discovery.h"
 
 class Checkers : public GameBase {
-    friend void ck_on_invite(const Peer& from);
-    friend void ck_on_accept(const Peer& from);
-    friend void ck_on_game_data(const char* json);
-    friend void ck_lobby_peer_cb(lv_event_t* e);
-
 public:
     enum Mode { MODE_SELECT, MODE_CPU, MODE_LOCAL, MODE_LOBBY, MODE_NETWORK };
 
@@ -36,7 +31,6 @@ private:
     lv_obj_t* cell_objs_[64] = {};
     lv_obj_t* piece_objs_[64] = {};
     lv_obj_t* lbl_status_ = nullptr;
-    lv_obj_t* lobby_list_ = nullptr;
 
     int8_t board_[64] = {};
     int selected_ = -1;           // Currently selected piece index
@@ -49,9 +43,7 @@ private:
     int jump_piece_ = -1;         // Piece doing multi-jump
     IPAddress peer_ip_;
 
-    lv_obj_t* create_mode_select();
     lv_obj_t* create_board();
-    lv_obj_t* create_lobby();
     void init_pieces();
     void draw_board();
     void draw_piece(int idx);
@@ -77,4 +69,7 @@ private:
     static void mode_cpu_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_online_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };

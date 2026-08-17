@@ -17,72 +17,135 @@ Games fall into two sync categories:
 | **Turn-based** | Send moves, derive state locally | Tic-Tac-Toe, Connect 4, Chess, Checkers, Dots & Boxes, Memory Match, Backgammon, Ludo |
 | **Continuous** | Stream state at fixed intervals | Pong, Pictionary |
 
-## Common Patterns
+## Common Patterns: the `mp_shell` Library
 
-### Static Self Pointer
+The mode-select screen, lobby screen + peer list, invite/accept popup, and
+discovery-callback wiring used to be reimplemented per game (~90-140 near-
+identical lines each — a file-scope `s_self` pointer, `friend` declarations
+for four discovery-callback free functions, a hand-built invite `lv_msgbox`,
+a lobby peer-refresh loop in `update()`, and manual `discovery_on_*(nullptr)`
+cleanup in `destroy()`). That's now centralized in `src/net/mp_shell.h`/
+`.cpp` — every 2-player game plugs into it instead of reimplementing it.
+This section describes the current pattern; scope is strictly the pre-game
+handshake — `GameBase`'s heartbeat/move-counter resync and each game's own
+in-game protocol (documented per-game below) are untouched by this layer.
 
-Every network game uses a file-scope static pointer so global C-style discovery callbacks can access the game instance:
+### Per-Game Config
 
 ```cpp
-static MyGame* s_self = nullptr;
+static const MpShellConfig kCfg = {
+    "mygame",   // game_id — discovery_set_game() + Peer.game match + JSON "game" field
+    "My Game",  // display_name — mode-select title, invite msgbox title, lobby title
+    true,       // show_cpu_button — false for games with no CPU AI (Pong, Pictionary)
+    false,      // show_idle_peers — true only for Battleship (see below)
+};
+```
 
-void my_on_game_data(const char* json) {
-    if (!s_self || !s_self->network_mode_) return;
+### Mode Select & Lobby
+
+```cpp
+lv_obj_t* MyGame::createScreen() {
+    s_self = this;
+    mode_ = MODE_SELECT;
+    screen_ = mp_create_mode_select(kCfg, mode_cpu_cb, mode_local_cb, mode_online_cb);
+    return screen_;
+}
+
+void MyGame::mode_online_cb(lv_event_t*) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_LOBBY;
+    lv_obj_t* scr = mp_shell_host_lobby(kCfg, on_host_ready, on_guest_ready, on_game_data, nullptr);
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+```
+
+`mp_create_mode_select()` builds the standard "vs CPU / Local (2P) / Network
+(2P)" screen (2 or 3 buttons per `show_cpu_button`). `mp_shell_host_lobby()`
+registers the shell's own discovery callbacks, calls
+`discovery_set_game(game_id, "waiting")`, and builds the peer list + "Tap a
+peer to invite" hint. Both take an optional trailing `lv_obj_t* into` — if
+provided, they build into that existing object instead of creating a new
+screen (used by Pictionary, whose `screen_` is one persistent object rebuilt
+in place via `lv_obj_clean()` rather than swapped via `lv_scr_load_anim()`).
+
+Call `mp_shell_lobby_tick()` once per `update()` tick while the lobby is
+showing (mirrors the old per-game peer-refresh loop; no-ops otherwise), and
+`mp_shell_set_status(text)` from a role callback to show status text in
+place of the peer list (Memory Match's/Pictionary's "Waiting for host to
+start..." — see below). **Caution:** don't call `mp_shell_set_status()`
+after a `lv_obj_clean()` on the screen the lobby list was built into — that
+invalidates the shell's internal list pointer out from under it; build a
+plain label directly instead (Pictionary's `on_guest_ready` does this).
+
+### Role Callbacks
+
+```cpp
+// Our invite was accepted — we're host, we go first.
+void MyGame::on_host_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_NETWORK;
+    s_self->peer_ip_ = peer.ip;
+    s_self->my_turn_ = true;
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
+// We accepted someone's invite — we're guest, we go second.
+void MyGame::on_guest_ready(const Peer& peer) {
+    if (!s_self) return;
+    s_self->mode_ = MODE_NETWORK;
+    s_self->peer_ip_ = peer.ip;
+    s_self->my_turn_ = false;
+    lv_obj_t* scr = s_self->create_board();
+    lv_scr_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
+    s_self->screen_ = scr;
+}
+
+void MyGame::on_game_data(const char* json) {
+    if (!s_self || s_self->mode_ != MODE_NETWORK) return;
     s_self->onNetworkData(json);
 }
 ```
 
-Set in `createScreen()`, cleared in `destroy()`.
+The shell shows the Accept/Decline popup itself and calls
+`discovery_send_accept()`/`discovery_send_decline()` — a game never
+hand-builds an invite `lv_msgbox` anymore. `on_host_ready`/`on_guest_ready`
+are free to do more than switch straight to the board: Memory Match's host
+builds+shuffles the board and calls its own `send_board_sync()`, while its
+guest calls `mp_shell_set_status("Waiting for host to start...")` and
+doesn't build a board until the sync arrives; Pictionary's host resets
+scores/round and calls `start_round()` (which sends a "setup" message).
+Battleship's callbacks go to its ship-placement phase instead of straight
+to a playable board.
 
-### Friend Declarations
+`show_idle_peers` (Battleship only): the lobby's default peer filter is
+"announcing this game, and not already `\"playing\"` with someone else".
+Battleship's is more permissive — it also shows peers not yet announcing
+*any* game — since a fresh peer might not have picked Network mode yet.
 
-Discovery callbacks need access to private members:
-
-```cpp
-class MyGame : public GameBase {
-    friend void my_on_invite(const Peer& from);
-    friend void my_on_accept(const Peer& from);
-    friend void my_on_game_data(const char* json);
-};
-```
-
-### Lobby Registration
-
-When entering network mode, every game registers callbacks and announces:
-
-```cpp
-discovery_set_game("mygame", "waiting");
-discovery_on_invite(my_on_invite);
-discovery_on_accept(my_on_accept);
-discovery_on_game_data(my_on_game_data);
-```
-
-`discovery_send_invite()` and `discovery_send_accept()` are retried and acknowledged automatically by the discovery layer (see [ESP-NOW Transport Design](esp-now-transport.md#reliable-inviteaccept-handshake)) — games don't need to do anything extra to benefit. The one thing every game's invite popup should do is call `discovery_send_decline(peer_ip)` from its Decline button handler, so the host's pending invite stops retrying immediately:
-
-```cpp
-} else {
-    discovery_send_decline(pending_ip);
-    lv_msgbox_close(invite_msgbox);
-    invite_msgbox = nullptr;
-}
-```
-
-### Cleanup on Destroy
+### Cleanup
 
 ```cpp
 void MyGame::destroy() {
-    discovery_clear_game();
-    discovery_on_invite(nullptr);
-    discovery_on_accept(nullptr);
-    discovery_on_game_data(nullptr);
+    mp_shell_end(peer_ip_, mode_ == MODE_NETWORK && !game_done_);
     s_self = nullptr;
+    screen_ = nullptr;
 }
 ```
 
+`mp_shell_end()` closes any open invite popup, sends `{"abandon":true}` to
+`peer_ip` if the second argument is true, then calls `discovery_clear_game()`
+and clears all four discovery callback slots. Pass `false` from
+`mode_cpu_cb`/`mode_local_cb` too (cheap even when no network session was
+active — it guarantees a clean slate before entering CPU/local play).
+
 ### Role Assignment
 
-- **Host** = device that sent the invite (receives accept). Typically plays first / controls game flow.
-- **Guest** = device that accepted the invite.
+- **Host** = device that sent the invite (receives accept, fires
+  `on_host_ready`). Typically plays first / controls game flow.
+- **Guest** = device that accepted the invite (fires `on_guest_ready`).
 
 ---
 

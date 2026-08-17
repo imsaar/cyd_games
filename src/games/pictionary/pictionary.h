@@ -3,10 +3,6 @@
 #include "../../net/discovery.h"
 
 class Pictionary : public GameBase {
-    friend void pict_on_invite(const Peer& from);
-    friend void pict_on_accept(const Peer& from);
-    friend void pict_on_game_data(const char* json);
-    friend void pict_lobby_peer_cb(lv_event_t* e);
     friend lv_obj_t* create_draw_area(lv_obj_t* parent, Pictionary* self);
 
 public:
@@ -71,7 +67,6 @@ private:
     lv_obj_t* lbl_score_ = nullptr;
     lv_obj_t* btn_panel_ = nullptr;
     lv_obj_t* choice_btns_[4] = {};
-    lv_obj_t* lobby_list_ = nullptr;
 
     void show_menu();
     void show_mode_select();
@@ -101,4 +96,7 @@ private:
     static void play_again_cb(lv_event_t* e);
     static void mode_local_cb(lv_event_t* e);
     static void mode_network_cb(lv_event_t* e);
+    static void on_host_ready(const Peer& peer);
+    static void on_guest_ready(const Peer& peer);
+    static void on_game_data(const char* json);
 };
