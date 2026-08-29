@@ -6,8 +6,8 @@ This guide walks through building a battery-powered, hand-held arcade unit aroun
 
 - 3D-printed two-part case (with a battery bay, a slide-switch cutout, and a buzzer pocket) — [CYD Cheap Yellow Display Portable Case w/ Battery](https://makerworld.com/en/models/853122-cyd-cheap-yellow-display-portable-case-w-battery)
 - CYD board — ESP32-2432S028 2.8" TFT touch display
-- USB-C LiPo charge/boost combo board (micro-USB or USB-C in, `B+`/`B-` battery pads, boost converter out)
-- [103450 3.7V 2000mAh Polymer Lithium Rechargeable Battery](https://www.aliexpress.us/item/3256811607466964.html?spm=a2g0o.order_list.order_list_main.5.6c89194dHC80SC&gatewayAdapt=glo2usa) (pictured: LD1D 103450)
+- [USB-C LiPo charge/boost combo board](https://www.aliexpress.us/item/3256805424127849.html) (micro-USB or USB-C in, `B+`/`B-` battery pads, boost converter out)
+- [103450 3.7V 2000mAh Polymer Lithium Rechargeable Battery](https://www.aliexpress.us/item/3256811607466964.html) (pictured: LD1D 103450)
 - Small piezo buzzer
 - 6 mm slide micro-switch (3-pin, trimmed to 2-pin — used as the power on/off switch)
 - Hookup wire — red (power) and black (ground) at minimum, plus a few extra colors for the buzzer leads

@@ -12,6 +12,8 @@ Built with LVGL 8, TFT_eSPI, PlatformIO, and ElegantOTA.
 
 For an ASCII rear-view diagram and how to power the board via the **S1 / S3** solder pads (alternative to USB), see [Hardware: Power & Connections](docs/hardware-power.md).
 
+For a step-by-step, photo-illustrated build of a battery-powered handheld case, see [Assembly Guide](assembly.md).
+
 ## Games
 
 | Game / App | Players | Network | Description |
